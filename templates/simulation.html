@@ -1,0 +1,52 @@
+{% extends 'base.html' %}
+
+{% block title %}Simulación en Tiempo Real{% endblock %}
+
+{% block content %}
+    <h2>Visualización de la Simulación</h2>
+
+    <form method="POST" action="{{ url_for('simulation') }}">
+        <label for="simulation_mode">Modo de Simulación:</label>
+        <select name="simulation_mode" id="simulation_mode">
+            <option value="stochastic" {% if current_mode == 'stochastic' %}selected{% endif %}>Estocástico</option>
+            <option value="deterministic" {% if current_mode == 'deterministic' %}selected{% endif %}>Determinista</option>
+        </select>
+
+        <label for="config_file">Configuración:</label>
+        <select name="config_file" id="config_file">
+            {% for config in config_files %}
+            <option value="{{ config }}" {% if request.form.get('config_file') == config %}selected{% endif %}>{{ config }}</option>
+            {% endfor %}
+        </select>
+
+        <label for="seed">Semilla (para modo determinista):</label>
+        <input type="number" name="seed" id="seed">
+
+        <button type="submit">Aplicar Configuración</button>
+    </form>
+
+    <div class="simulation-container">
+        <canvas id="gridCanvas" width="600" height="400" style="border:1px solid #ccc;"></canvas>
+
+        <div class="controls">
+            <button id="playButton">Play</button>
+            <button id="pauseButton">Pause</button>
+            <button id="resetButton">Reset</button>
+            <button id="stepButton">Step</button>
+
+            <div class="speed-control">
+                <label for="speedSlider">Velocidad:</label>
+                <input type="range" id="speedSlider" min="1" max="199" value="100">
+                <span id="speedValue">1.0x</span>
+            </div>
+
+            <div class="metrics">
+                <p id="modeDisplay">Modo: {{ current_mode }}</p>
+                <p id="population">Población Total: 0</p>
+                <p id="totalResource">Recursos Totales: 0.00</p>
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/simulation.js') }}"></script>
+{% endblock %}

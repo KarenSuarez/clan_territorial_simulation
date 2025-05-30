@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reporte Científico de Simulación</title>
+    <style>
+        body { font-family: sans-serif; }
+        h1, h2, h3 { color: #333; }
+        .section { margin-bottom: 20px; }
+    </style>
+</head>
+<body>
+    <h1>Reporte Científico de Simulación</h1>
+
+    <div class="section">
+        <h2>Resumen de la Simulación</h2>
+        <p>Modo de Simulación: {{ simulation_mode }}</p>
+        <p>Configuración: {{ config_name }}</p>
+        <p>Duración: {{ simulation_duration }} pasos</p>
+        </div>
+
+    <div class="section">
+        <h2>Gráficos de Población a lo Largo del Tiempo</h2>
+        {{ population_chart|safe }}
+    </div>
+
+    <div class="section">
+        <h2>Mapa de Calor de Densidad Territorial (Últimos 100 Pasos)</h2>
+        {{ territory_heatmap|safe }}
+    </div>
+
+    <div class="section">
+        <h2>Análisis de Patrones Espaciales</h2>
+        <p>{{ spatial_patterns }}</p>
+    </div>
+
+    <div class="section">
+        <h2>Métricas de Convergencia</h2>
+        {{ convergence_plot|safe }}
+    </div>
+
+    <div class="section">
+        <h2>Estadísticas de Clanes</h2>
+        {{ clan_statistics|safe }}
+    </div>
+
+    <div class="section">
+        <h2>Correlación de Variables</h2>
+        {{ variable_correlation|safe }}
+    </div>
+
+    <div class="section">
+        <h2>Distribución de Probabilidad de la Población</h2>
+        {{ population_distribution|safe }}
+    </div>
+
+    <div class="section">
+        <h2>Datos de Simulación (Últimos 100 Pasos)</h2>
+        <pre>{{ last_100_steps_data|safe }}</pre>
+    </div>
+
+    <p>Reporte generado el {{ report_generation_time }}</p>
+</body>
+</html>

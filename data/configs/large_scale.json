@@ -1,0 +1,8 @@
+{
+    "grid_size": [500, 500],
+    "initial_clan_count": 20,
+    "min_clan_size": 10,
+    "max_clan_size": 30,
+    "simulation_steps": 500,
+    "dt": 0.05
+}

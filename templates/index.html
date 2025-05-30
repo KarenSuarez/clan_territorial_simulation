@@ -1,0 +1,16 @@
+{% extends 'base.html' %}
+
+{% block title %}Simulación Territorial{% endblock %}
+
+{% block content %}
+    <h2>Bienvenido a la Simulación de Competencia Territorial</h2>
+    <p>Este proyecto implementa una simulación computacional para modelar las dinámicas de supervivencia colectiva entre clanes que compiten por territorio y recursos.</p>
+    <p>Utilice el menú de navegación para acceder a la visualización de la simulación.</p>
+
+    <h3>Configuración Inicial de la Simulación</h3>
+    <ul>
+        <li>Tamaño de la Rejilla: {{ grid_size[0] }}x{{ grid_size[1] }}</li>
+        </ul>
+
+    <p><a href="{{ url_for('simulation') }}">Ir a la Simulación</a></p>
+{% endblock %}

@@ -1,0 +1,78 @@
+# clan_territorial_simulation/templates/analysis.html
+{% extends 'base.html' %}
+
+{% block title %}Análisis Científico{% endblock %}
+
+{% block head %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/charts.css') }}">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+{% endblock %}
+
+{% block content %}
+    <h2>Análisis Científico de la Simulación</h2>
+
+    <div class="analysis-section">
+        <h3>Gráficos Temporales</h3>
+        <div id="populationChart">{{ population_chart|safe }}</div>
+    </div>
+
+    <div class="analysis-section">
+        <h3>Mapas de Calor</h3>
+        <div id="territoryHeatmap">{{ territory_heatmap|safe }}</div>
+    </div>
+
+    <div class="analysis-section">
+        <h3>Patrones Espaciales</h3>
+        <p>{{ spatial_patterns }}</p>
+    </div>
+
+    <div class="analysis-section">
+        <h3>Métricas de Convergencia</h3>
+        <div id="convergenceMetrics">{{ convergence_plot|safe }}</div>
+    </div>
+
+    <div class="analysis-section">
+        <h3>Estadísticas de Clanes</h3>
+        {{ clan_statistics|safe }}
+    </div>
+
+    <div class="analysis-section">
+        <h3>Correlación de Variables</h3>
+        {{ variable_correlation|safe }}
+    </div>
+
+    <div class="analysis-section">
+        <h3>Tests de Significancia</h3>
+        {{ significance_tests|safe }}
+    </div>
+
+    <div class="analysis-section">
+        <h3>Distribución de Probabilidad de la Población</h3>
+        <div id="populationDistribution">{{ population_distribution|safe }}</div>
+    </div>
+
+    <div class="export-section">
+        <h3>Exportar Datos y Reportes</h3>
+        <button onclick="window.location='{{ url_for('export_data', format='csv') }}'">Exportar Datos (CSV)</button>
+        <button onclick="window.location='{{ url_for('export_data', format='json') }}'">Exportar Datos (JSON)</button>
+        <button onclick="window.location='{{ url_for('generate_report') }}'">Generar Reporte (HTML)</button>
+        <button id="exportChartButton">Exportar Gráficos (PNG)</button>
+        <button onclick="window.location='{{ url_for('generate_animation') }}'">Generar Animación (HTML)</button>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/charts.js') }}"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // Lógica para exportar gráficos del lado del cliente si es necesario
+            const exportChartButton = document.getElementById('exportChartButton');
+            if (exportChartButton) {
+                exportChartButton.addEventListener('click', () => {
+                    // Implementar la lógica de exportación aquí, posiblemente usando una biblioteca como html2canvas
+                    alert('Función de exportación de gráficos no implementada en el cliente.');
+                });
+            }
+        });
+    </script>
+{% endblock %}

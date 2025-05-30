@@ -1,0 +1,65 @@
+# Entorno virtual
+venv/
+.venv/
+
+# Archivos de Python compilados
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Archivos temporales de editores
+*.swp
+*.swo
+*.bak
+*.tmp
+*.log
+*.DS_Store
+Thumbs.db
+
+# Salidas de datos
+data/output/
+data/results/
+
+# Archivos de configuración específicos del usuario
+*.env
+*.local
+*.secret
+.env.*
+
+# Archivos de pruebas
+.coverage
+.cache/
+.tox/
+.nox/
+.pytest_cache/
+tests/__pycache__/
+
+# Informes y notebooks generados automáticamente (si se usan)
+*.ipynb_checkpoints
+
+# Archivos de análisis temporales
+*.out
+*.csv
+*.tsv
+*.xlsx
+
+# Archivos de documentación generados
+docs/_build/
+docs/*.aux
+docs/*.log
+docs/*.pdf
+docs/*.toc
+
+# Experimentos generados
+experiments/*.out
+experiments/*.log
+
+# Configuraciones de IDEs
+.vscode/
+.idea/
+*.code-workspace
+
+# Distribución del paquete
+build/
+dist/
+*.egg-info/

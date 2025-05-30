@@ -1,0 +1,70 @@
+body {
+    font-family: sans-serif;
+    margin: 20px;
+}
+
+header {
+    background-color: #f0f0f0;
+    padding: 10px;
+    text-align: center;
+}
+
+nav ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    text-align: center;
+}
+
+nav ul li {
+    display: inline;
+    margin: 0 10px;
+}
+
+nav a {
+    text-decoration: none;
+    color: #333;
+}
+
+main {
+    margin-top: 20px;
+}
+
+.grid-container {
+    display: grid;
+    border: 1px solid #ccc;
+}
+
+.grid-cell {
+    width: 10px;
+    height: 10px;
+    border: 1px solid #eee;
+}
+
+.simulation-container {
+    display: flex;
+    gap: 20px;
+    align-items: flex-start;
+}
+
+.controls {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.speed-control {
+    display: flex;
+    align-items: center;
+}
+
+.speed-control label {
+    margin-right: 10px;
+}
+
+.metrics {
+    margin-top: 20px;
+    padding: 10px;
+    border: 1px solid #ddd;
+    background-color: #f9f9f9;
+}

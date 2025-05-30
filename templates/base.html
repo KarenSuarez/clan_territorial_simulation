@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Simulación Territorial{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    {% block head %}{% endblock %}
+</head>
+<body>
+    <header>
+        <h1>Simulación de Competencia Territorial</h1>
+        <nav>
+            <ul>
+                <li><a href="{{ url_for('index') }}">Inicio</a></li>
+                <li><a href="{{ url_for('simulation') }}">Simulación</a></li>
+                <li><a href="{{ url_for('conservation_analysis') }}">Análisis Conservación</a></li>
+                <li><a href="{{ url_for('convergence_analysis') }}">Análisis Convergencia</a></li>
+                <li><a href="{{ url_for('sensitivity_analysis') }}">Análisis Sensibilidad</a></li>
+            </ul>
+        </nav>
+    </header>
+    <main>
+        {% block content %}{% endblock %}
+    </main>
+    <footer>
+        <p>&copy; 2025 Simulación Territorial</p>
+    </footer>
+</body>
+</html>

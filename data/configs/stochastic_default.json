@@ -1,0 +1,4 @@
+{
+    "movement_noise_std": 0.1,
+    "forage_probability": 0.7
+}
