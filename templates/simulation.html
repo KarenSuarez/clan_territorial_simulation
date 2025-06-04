@@ -2,51 +2,609 @@
 
 {% block title %}Simulación en Tiempo Real{% endblock %}
 
+{% block head %}
+<meta name="description" content="Visualización interactiva de la simulación de competencia territorial">
+<style>
+    .simulation-intro {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 2rem;
+        border-radius: var(--border-radius);
+        margin-bottom: 2rem;
+        text-align: center;
+    }
+
+    .simulation-intro h3 {
+        margin: 0 0 1rem 0;
+        font-size: 1.5rem;
+    }
+
+    .simulation-intro p {
+        margin: 0;
+        opacity: 0.9;
+        line-height: 1.6;
+    }
+
+    .loading-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.8);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        z-index: 10000;
+        color: white;
+    }
+
+    .loading-spinner {
+        border: 4px solid rgba(255, 255, 255, 0.3);
+        border-top: 4px solid white;
+        border-radius: 50%;
+        width: 50px;
+        height: 50px;
+        animation: spin 1s linear infinite;
+        margin-bottom: 1rem;
+    }
+
+    @keyframes spin {
+        0% {
+            transform: rotate(0deg);
+        }
+
+        100% {
+            transform: rotate(360deg);
+        }
+    }
+
+    .clan-metric {
+        background: white;
+        padding: 1rem;
+        margin: 0.5rem 0;
+        border-radius: var(--border-radius);
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+    }
+
+    .clan-info {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+        gap: 0.5rem;
+        font-size: 0.9rem;
+    }
+
+    .clan-name {
+        font-weight: bold;
+        color: var(--primary-color);
+    }
+
+    .connection-status {
+        padding: 0.3rem 0.8rem;
+        border-radius: 20px;
+        font-size: 0.8rem;
+        font-weight: 500;
+    }
+
+    .connection-status.connected {
+        background: var(--success-color);
+        color: white;
+    }
+
+    .connection-status.disconnected {
+        background: var(--accent-color);
+        color: white;
+    }
+
+    .chart-container {
+        background: white;
+        padding: 1.5rem;
+        border-radius: var(--border-radius);
+        box-shadow: var(--shadow);
+        margin-top: 1rem;
+    }
+
+    .notification {
+        font-family: inherit;
+        border-radius: var(--border-radius);
+        box-shadow: var(--shadow);
+    }
+
+    .breadcrumb {
+        margin-bottom: 1rem;
+    }
+
+    .breadcrumb ol {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+        display: flex;
+        gap: 0.5rem;
+        align-items: center;
+    }
+
+    .breadcrumb li {
+        color: var(--dark-gray);
+    }
+
+    .breadcrumb li:not(:last-child)::after {
+        content: '>';
+        margin-left: 0.5rem;
+        color: var(--secondary-color);
+    }
+
+    .breadcrumb a {
+        color: var(--secondary-color);
+        text-decoration: none;
+    }
+
+    .breadcrumb a:hover {
+        text-decoration: underline;
+    }
+</style>
+{% endblock %}
+
 {% block content %}
-    <h2>Visualización de la Simulación</h2>
+<!-- Introduction Section -->
+<div class="simulation-intro">
+    <h3>🎮 Simulación Interactiva de Competencia Territorial</h3>
+    <p>
+        Observa cómo los clanes compiten por territorio y recursos en tiempo real.
+        Configura los parámetros, controla la velocidad y analiza las dinámicas emergentes
+        del sistema de supervivencia colectiva.
+    </p>
+</div>
 
-    <form method="POST" action="{{ url_for('simulation') }}">
-        <label for="simulation_mode">Modo de Simulación:</label>
-        <select name="simulation_mode" id="simulation_mode">
-            <option value="stochastic" {% if current_mode == 'stochastic' %}selected{% endif %}>Estocástico</option>
-            <option value="deterministic" {% if current_mode == 'deterministic' %}selected{% endif %}>Determinista</option>
-        </select>
+<!-- Configuration Form -->
+<form method="POST" action="{{ url_for('simulation') }}" class="config-form">
+    <h3>⚙️ Configuración de la Simulación</h3>
 
-        <label for="config_file">Configuración:</label>
-        <select name="config_file" id="config_file">
-            {% for config in config_files %}
-            <option value="{{ config }}" {% if request.form.get('config_file') == config %}selected{% endif %}>{{ config }}</option>
-            {% endfor %}
-        </select>
+    <div class="form-row">
+        <div class="form-group">
+            <label for="simulation_mode">
+                🎲 Modo de Simulación
+                <span class="info-tooltip"
+                    data-tooltip="Determinista: resultados reproducibles con semilla. Estocástico: variabilidad aleatoria en cada ejecución.">?</span>
+            </label>
+            <select name="simulation_mode" id="simulation_mode" required>
+                <option value="stochastic" {% if current_mode=='stochastic' %}selected{% endif %}>
+                    🎯 Estocástico (Aleatorio)
+                </option>
+                <option value="deterministic" {% if current_mode=='deterministic' %}selected{% endif %}>
+                    🔧 Determinista (Reproducible)
+                </option>
+            </select>
+        </div>
 
-        <label for="seed">Semilla (para modo determinista):</label>
-        <input type="number" name="seed" id="seed">
+        <div class="form-group">
+            <label for="config_file">
+                📋 Configuración Predefinida
+                <span class="info-tooltip"
+                    data-tooltip="Selecciona una configuración con parámetros específicos para diferentes escenarios de simulación.">?</span>
+            </label>
+            <select name="config_file" id="config_file" required>
+                {% for config in config_files %}
+                <option value="{{ config }}" {% if request.form.get('config_file')==config %}selected{% endif %}>
+                    📄 {{ config.replace('.json', '').replace('_', ' ').title() }}
+                </option>
+                {% endfor %}
+            </select>
+        </div>
 
-        <button type="submit">Aplicar Configuración</button>
-    </form>
+        <div class="form-group">
+            <label for="seed">
+                🌱 Semilla (Solo modo determinista)
+                <span class="info-tooltip"
+                    data-tooltip="Número para generar resultados reproducibles. Déjalo vacío para usar semilla aleatoria.">?</span>
+            </label>
+            <input type="number" name="seed" id="seed" placeholder="Ej: 12345" min="1" max="999999">
+        </div>
 
-    <div class="simulation-container">
-        <canvas id="gridCanvas" width="600" height="400" style="border:1px solid #ccc;"></canvas>
+        <div class="form-group">
+            <button type="submit" class="play-btn">
+                🚀 Aplicar Configuración
+            </button>
+        </div>
+    </div>
+</form>
 
-        <div class="controls">
-            <button id="playButton">Play</button>
-            <button id="pauseButton">Pause</button>
-            <button id="resetButton">Reset</button>
-            <button id="stepButton">Step</button>
-
-            <div class="speed-control">
-                <label for="speedSlider">Velocidad:</label>
-                <input type="range" id="speedSlider" min="1" max="199" value="100">
-                <span id="speedValue">1.0x</span>
+<!-- Main Simulation Container -->
+<div class="simulation-container">
+    <!-- Canvas Area -->
+    <div class="canvas-container">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+            <h3 style="margin: 0;">🗺️ Mapa de Simulación</h3>
+            <div style="font-size: 0.9rem; color: var(--dark-gray);">
+                <span id="statusIndicator" class="status-indicator status-stopped"></span>
+                Estado: <span id="simulationStatus">Detenido</span>
             </div>
+        </div>
 
-            <div class="metrics">
-                <p id="modeDisplay">Modo: {{ current_mode }}</p>
-                <p id="population">Población Total: 0</p>
-                <p id="totalResource">Recursos Totales: 0.00</p>
-            </div>
+        <canvas id="gridCanvas" width="600" height="400"></canvas>
+
+        <!-- Canvas Controls -->
+        <div style="margin-top: 1rem; text-align: center; font-size: 0.9rem; color: var(--dark-gray);">
+            💡 <strong>Tip:</strong> Haz clic en cualquier celda para ver información detallada
         </div>
     </div>
 
-    <script src="{{ url_for('static', filename='js/simulation.js') }}"></script>
+    <!-- Controls Panel -->
+    <div class="controls-panel">
+        <!-- Simulation Controls -->
+        <div class="controls-section">
+            <h4>🎮 Controles de Simulación</h4>
+
+            <div class="button-group">
+                <button id="playButton" class="play-btn" title="Iniciar simulación (Espacio)">
+                    ▶️ Iniciar
+                </button>
+                <button id="pauseButton" title="Pausar simulación (Espacio)">
+                    ⏸️ Pausar
+                </button>
+                <button id="resetButton" class="danger-btn" title="Reiniciar simulación (R)">
+                    🔄 Reiniciar
+                </button>
+                <button id="stepButton" title="Avanzar un paso (S)">
+                    ⏭️ Paso
+                </button>
+            </div>
+
+            <div class="speed-control">
+                <label for="speedSlider">
+                    ⚡ Velocidad de Simulación
+                    <span class="info-tooltip"
+                        data-tooltip="Controla qué tan rápido avanza la simulación. Mayor velocidad = menos tiempo entre pasos.">?</span>
+                </label>
+                <input type="range" id="speedSlider" class="speed-slider" min="1" max="200" value="100">
+                <span id="speedValue" class="speed-value">1.0x</span>
+            </div>
+
+            <div style="margin-top: 1rem;">
+                <label>
+                    <input type="checkbox" id="autoReset">
+                    🔄 Auto-reiniciar cuando no queden clanes
+                </label>
+            </div>
+        </div>
+
+        <!-- Real-time Metrics -->
+        <div class="controls-section">
+            <h4>📊 Métricas en Tiempo Real</h4>
+
+            <div class="metrics">
+                <div class="metric-item">
+                    <span class="metric-label">👥 Población Total:</span>
+                    <span class="metric-value" id="population">0</span>
+                </div>
+
+                <div class="metric-item">
+                    <span class="metric-label">🌿 Recursos Totales:</span>
+                    <span class="metric-value" id="totalResource">0.00</span>
+                </div>
+
+                <div class="metric-item">
+                    <span class="metric-label">🎯 Modo:</span>
+                    <span class="metric-value" id="modeDisplay">{{ current_mode }}</span>
+                </div>
+
+                <div class="metric-item">
+                    <span class="metric-label">🔢 Pasos:</span>
+                    <span class="metric-value" id="stepCount">0</span>
+                </div>
+
+                <div class="metric-item">
+                    <span class="metric-label">⏱️ Tiempo:</span>
+                    <span class="metric-value" id="timeElapsed">00:00</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Clan Information -->
+        <div class="controls-section">
+            <h4>🏛️ Información de Clanes</h4>
+            <div id="clanMetrics">
+                <p style="text-align: center; color: var(--dark-gray); font-style: italic;">
+                    Inicia la simulación para ver estadísticas de clanes
+                </p>
+            </div>
+        </div>
+
+        <!-- Quick Actions -->
+        <div class="controls-section">
+            <h4>⚡ Acciones Rápidas</h4>
+
+            <button onclick="window.location.href=url_for('conservation_analysis')"
+                style="width: 100%; margin-bottom: 0.5rem;">
+                🔬 Análisis de Conservación
+            </button>
+
+            <button onclick="window.location.href= url_for('convergence_analysis') "
+                style="width: 100%; margin-bottom: 0.5rem;">
+                📈 Análisis de Convergencia
+            </button>
+
+            <button onclick="exportCurrentData()" style="width: 100%; margin-bottom: 0.5rem;">
+                💾 Exportar Datos Actuales
+            </button>
+
+            <button onclick="takeScreenshot()" style="width: 100%;">
+                📸 Capturar Pantalla
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Agregar esta sección DESPUÉS de la sección de "Acciones Rápidas" en simulation.html -->
+
+<!-- Simulation Termination Controls -->
+<div class="controls-section">
+    <h4>⏹️ Control de Finalización</h4>
+
+    <div style="margin-bottom: 1rem;">
+        <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+            <input type="checkbox" id="autoReset" checked style="transform: scale(1.2);">
+            🔄 Auto-reiniciar cuando termine
+        </label>
+    </div>
+
+    <div style="margin-bottom: 1rem;">
+        <label for="maxStepsInput" style="display: block; margin-bottom: 0.5rem; font-weight: 600;">
+            📊 Máximo de pasos:
+        </label>
+        <div style="display: flex; gap: 0.5rem; align-items: center;">
+            <input type="number" id="maxStepsInput" min="50" max="2000" value="500"
+                style="flex: 1; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px;">
+            <button onclick="updateMaxSteps()" style="padding: 0.5rem 1rem; font-size: 0.9rem;">
+                ✅ Aplicar
+            </button>
+        </div>
+    </div>
+
+    <div id="terminationInfo" style="font-size: 0.85rem; color: #666; line-height: 1.4;">
+        <strong>Condiciones de finalización:</strong><br>
+        • Extinción total (5 pasos sin población)<br>
+        • Un solo clan superviviente<br>
+        • Población crítica (≤5 individuos)<br>
+        • Convergencia poblacional estable<br>
+        • Límite máximo de pasos
+    </div>
+</div>
+
+<!-- Progress indicator placeholder -->
+<div class="simulation-progress controls-section" style="display: none;">
+    <!-- Se llena dinámicamente con JavaScript -->
+</div>
+
+<script>
+    // Función para actualizar máximo de pasos
+    function updateMaxSteps() {
+        const input = document.getElementById('maxStepsInput');
+        if (input && window.SimulationController) {
+            const newMaxSteps = parseInt(input.value);
+            if (newMaxSteps >= 50 && newMaxSteps <= 2000) {
+                window.SimulationController.setMaxSteps(newMaxSteps);
+                showNotification(`Máximo de pasos establecido en ${newMaxSteps}`, 'success');
+            } else {
+                showNotification('El máximo de pasos debe estar entre 50 y 2000', 'error');
+            }
+        }
+    }
+
+    // Mostrar indicador de progreso cuando la simulación esté corriendo
+    document.addEventListener('DOMContentLoaded', function () {
+        // Mostrar/ocultar indicador de progreso según el estado
+        const observer = new MutationObserver(function (mutations) {
+            const progressDiv = document.querySelector('.simulation-progress');
+            const isRunning = window.SimulationController && window.SimulationController.isRunning();
+
+            if (progressDiv) {
+                progressDiv.style.display = isRunning ? 'block' : 'none';
+            }
+        });
+
+        // Observar cambios en el estado de la simulación
+        const targetNode = document.querySelector('.controls-panel');
+        if (targetNode) {
+            observer.observe(targetNode, { childList: true, subtree: true });
+        }
+    });
+</script>
+
+<style>
+    /* Estilos adicionales para los controles de finalización */
+    .simulation-progress {
+        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+        border-left: 4px solid #3498db;
+    }
+
+    .simulation-progress .progress-bar {
+        background: linear-gradient(90deg, #27ae60, #3498db);
+        height: 8px;
+        border-radius: 4px;
+        transition: width 0.3s ease;
+    }
+
+    #terminationInfo {
+        background: #f8f9fa;
+        padding: 0.8rem;
+        border-radius: 4px;
+        border-left: 3px solid #3498db;
+        margin-top: 0.5rem;
+    }
+
+    .controls-section input[type="number"] {
+        font-family: monospace;
+        text-align: center;
+    }
+
+    .controls-section input[type="checkbox"] {
+        accent-color: #27ae60;
+    }
+</style>
+
+<!-- Real-time Chart -->
+<div class="chart-container">
+    <h3>📈 Evolución Temporal</h3>
+    <canvas id="populationChart" width="800" height="300"></canvas>
+</div>
+
+<!-- Information Panel -->
+<div class="analysis-section" style="margin-top: 2rem;">
+    <h3>📚 Información del Sistema</h3>
+
+    <div class="form-row">
+        <div>
+            <h4>🎯 Objetivo de la Simulación</h4>
+            <p>
+                Esta simulación modela la competencia territorial entre clanes que luchan por
+                recursos limitados en un entorno compartido. Cada clan debe balancear el
+                crecimiento poblacional con la sostenibilidad de los recursos disponibles.
+            </p>
+        </div>
+
+        <div>
+            <h4>🔬 Parámetros Clave</h4>
+            <ul>
+                <li><strong>Tamaño del clan:</strong> Determina la capacidad de competencia</li>
+                <li><strong>Recursos:</strong> Necesarios para la supervivencia y crecimiento</li>
+                <li><strong>Territorio:</strong> Área de influencia y control</li>
+                <li><strong>Interacciones:</strong> Competencia y colaboración entre clanes</li>
+            </ul>
+        </div>
+
+        <div>
+            <h4>🎨 Visualización</h4>
+            <ul>
+                <li><strong>Verde:</strong> Densidad de recursos (más intenso = más recursos)</li>
+                <li><strong>Círculos de colores:</strong> Clanes (tamaño = población)</li>
+                <li><strong>Áreas sombreadas:</strong> Influencia territorial</li>
+                <li><strong>Números en clanes:</strong> Tamaño actual de población</li>
+            </ul>
+        </div>
+    </div>
+</div>
+
+<!-- Performance Info -->
+<div class="analysis-section">
+    <h3>⚡ Información de Rendimiento</h3>
+    <div id="performanceInfo" style="font-family: monospace; font-size: 0.9rem;">
+        <div>FPS: <span id="fps">--</span></div>
+        <div>Latencia WebSocket: <span id="latency">--</span>ms</div>
+        <div>Memoria utilizada: <span id="memoryUsage">--</span>MB</div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/simulation.js') }}"></script>
+
+<script>
+    // Additional functionality specific to this page
+    function exportCurrentData() {
+        if (window.SimulationController && window.SimulationController.getState()) {
+            const data = {
+                state: window.SimulationController.getState(),
+                history: window.SimulationController.getHistory(),
+                timestamp: new Date().toISOString(),
+                config: {
+                    mode: document.getElementById('simulation_mode').value,
+                    config_file: document.getElementById('config_file').value,
+                    seed: document.getElementById('seed').value
+                }
+            };
+
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `simulation_data_${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        } else {
+            alert('No hay datos de simulación disponibles para exportar.');
+        }
+    }
+
+    function takeScreenshot() {
+        const canvas = document.getElementById('gridCanvas');
+        if (canvas) {
+            const link = document.createElement('a');
+            link.download = `simulation_screenshot_${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.png`;
+            link.href = canvas.toDataURL();
+            link.click();
+        }
+    }
+
+    // Performance monitoring
+    let fpsCounter = 0;
+    let lastFpsTime = Date.now();
+
+    function updatePerformanceInfo() {
+        fpsCounter++;
+        const now = Date.now();
+
+        if (now - lastFpsTime >= 1000) {
+            document.getElementById('fps').textContent = fpsCounter;
+            fpsCounter = 0;
+            lastFpsTime = now;
+        }
+
+        // Memory usage (if available)
+        if (performance.memory) {
+            const memUsed = (performance.memory.usedJSHeapSize / 1024 / 1024).toFixed(1);
+            document.getElementById('memoryUsage').textContent = memUsed;
+        }
+
+        requestAnimationFrame(updatePerformanceInfo);
+    }
+
+    // Start performance monitoring
+    document.addEventListener('DOMContentLoaded', function () {
+        updatePerformanceInfo();
+
+        // Update simulation status display
+        function updateSimulationStatus() {
+            const statusDisplay = document.getElementById('simulationStatus');
+            const isRunning = window.SimulationController ? window.SimulationController.isRunning() : false;
+
+            if (statusDisplay) {
+                statusDisplay.textContent = isRunning ? 'Ejecutando' : 'Detenido';
+            }
+        }
+
+        setInterval(updateSimulationStatus, 1000);
+    });
+
+    // Auto-save configuration
+    document.getElementById('simulation_mode').addEventListener('change', function () {
+        localStorage.setItem('sim_mode', this.value);
+    });
+
+    document.getElementById('config_file').addEventListener('change', function () {
+        localStorage.setItem('sim_config', this.value);
+    });
+
+    // Restore saved configuration
+    document.addEventListener('DOMContentLoaded', function () {
+        const savedMode = localStorage.getItem('sim_mode');
+        const savedConfig = localStorage.getItem('sim_config');
+
+        if (savedMode) {
+            const modeSelect = document.getElementById('simulation_mode');
+            if (modeSelect && modeSelect.querySelector(`option[value="${savedMode}"]`)) {
+                modeSelect.value = savedMode;
+            }
+        }
+
+        if (savedConfig) {
+            const configSelect = document.getElementById('config_file');
+            if (configSelect && configSelect.querySelector(`option[value="${savedConfig}"]`)) {
+                configSelect.value = savedConfig;
+            }
+        }
+    });
+</script>
 {% endblock %}

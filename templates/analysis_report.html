@@ -1,74 +1,84 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="es">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Animación de la Simulación</title>
+    <title>{{ analysis_type }} - Reporte</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <style>
-        #animationCanvas { border: 1px solid black; }
+        .report-container {
+            max-width: 1000px;
+            margin: 2rem auto;
+            padding: 2rem;
+            background: white;
+            border-radius: var(--border-radius);
+            box-shadow: var(--shadow);
+        }
+        
+        .report-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 2rem;
+            border-radius: var(--border-radius);
+            margin-bottom: 2rem;
+            text-align: center;
+        }
+        
+        .report-content {
+            line-height: 1.6;
+        }
+        
+        .back-button {
+            display: inline-block;
+            background: var(--secondary-color);
+            color: white;
+            padding: 0.8rem 1.5rem;
+            text-decoration: none;
+            border-radius: var(--border-radius);
+            margin-bottom: 2rem;
+            transition: var(--transition);
+        }
+        
+        .back-button:hover {
+            background: var(--primary-color);
+            transform: translateY(-2px);
+        }
     </style>
 </head>
 <body>
-    <h1>Animación de la Simulación</h1>
-    <canvas id="animationCanvas" width="600" height="400"></canvas>
-    <script>
-        const canvas = document.getElementById('animationCanvas');
-        const ctx = canvas.getContext('2d');
-        let frameIndex = 0;
-        let animationData = {{ animation_frames|safe }}; // Datos de la simulación para cada frame
-        let cellSize;
-
-        function drawFrame() {
-            if (!animationData || frameIndex >= animationData.length) {
-                return;
-            }
-
-            const state = animationData[frameIndex];
-            const grid = state.resource_grid;
-            const clans = state.clans;
-            const rows = grid.length;
-            const cols = grid[0].length;
-            cellSize = Math.min(canvas.width / cols, canvas.height / rows);
-
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-            // Render resources
-            for (let y = 0; y < rows; y++) {
-                for (let x = 0; x < cols; x++) {
-                    const resourceLevel = grid[y][x];
-                    const intensity = Math.min(1, resourceLevel / 100);
-                    const color = `rgba(0, 100, 0, ${intensity})`;
-                    ctx.fillStyle = color;
-                    ctx.fillRect(x * cellSize, y * cellSize, cellSize, cellSize);
-                }
-            }
-
-            // Render clans
-            clans.forEach(clan => {
-                const x = clan.position[0] * cellSize + cellSize / 2;
-                const y = clan.position[1] * cellSize + cellSize / 2;
-                const radius = Math.sqrt(clan.size) * 1.5;
-                ctx.beginPath();
-                ctx.arc(x, y, radius, 0, 2 * Math.PI);
-                ctx.fillStyle = getRandomColor(clan.id);
-                ctx.fill();
-                ctx.closePath();
-            });
-
-            frameIndex++;
-            requestAnimationFrame(drawFrame);
-        }
-
-        function getRandomColor(id) {
-            const hue = id * 30;
-            return `hsl(${hue}, 70%, 50%)`;
-        }
-
-        if (animationData && animationData.length > 0) {
-            drawFrame();
-        } else {
-            ctx.fillText('No data available for animation.', 10, 20);
-        }
-    </script>
+    <header>
+        <div class="header-container">
+            <h1>🏛️ Simulación de Competencia Territorial</h1>
+        </div>
+    </header>
+    
+    <main>
+        <a href="{{ url_for('index') }}" class="back-button">
+            ← Volver al Inicio
+        </a>
+        
+        <div class="report-container">
+            <div class="report-header">
+                <h2>{{ analysis_type }}</h2>
+                <p>Reporte generado automáticamente</p>
+            </div>
+            
+            <div class="report-content">
+                {{ report|safe }}
+            </div>
+            
+            <div style="margin-top: 3rem; padding-top: 2rem; border-top: 2px solid var(--light-gray);">
+                <p style="text-align: center; color: var(--dark-gray);">
+                    Reporte generado el {{ current_time }}
+                </p>
+            </div>
+        </div>
+    </main>
+    
+    <footer>
+        <div class="footer-content">
+            <p>&copy; 2025 Simulación Territorial - Análisis Científico</p>
+        </div>
+    </footer>
 </body>
 </html>

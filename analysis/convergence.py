@@ -1,4 +1,4 @@
-# clan_territorial_simulation/analysis/convergence.py
+# analysis/convergence.py
 import numpy as np
 from simulation.engine import SimulationEngine
 from models.environment import Environment
@@ -8,14 +8,37 @@ import json
 CONVERGENCE_TOLERANCE = 0.05
 
 def run_simulation_for_convergence(initial_conditions, total_steps, dt):
+    # Crear clanes desde las condiciones iniciales
+    if 'clans' in initial_conditions:
+        clans_data = initial_conditions['clans']
+    else:
+        # Generar clanes de ejemplo si no existen
+        clans_data = [
+            {'id': 1, 'size': 50, 'position': [10, 10], 'parameters': {'birth_rate': 0.1, 'natural_death_rate': 0.05}},
+            {'id': 2, 'size': 40, 'position': [30, 30], 'parameters': {'birth_rate': 0.12, 'natural_death_rate': 0.04}}
+        ]
+    
+    # Crear objetos Clan correctamente
+    initial_clans = []
+    for clan_data in clans_data:
+        clan = Clan(
+            clan_id=clan_data['id'],
+            initial_size=clan_data['size'],
+            initial_position=clan_data['position'],
+            parameters=clan_data['parameters']
+        )
+        initial_clans.append(clan)
+    
+    # Crear engine con parámetros correctos (sin simulation_params)
     engine = SimulationEngine(
-        Environment(grid_size=initial_conditions['grid_size']),
-        [Clan(**clan) for clan in initial_conditions['clans']],
-        simulation_params={'dt': dt}
+        Environment(grid_size=initial_conditions.get('grid_size', [50, 50])),
+        initial_clans,
+        dt=dt  # Pasar dt directamente
     )
+    
     states = [engine.get_simulation_state()]
     for _ in range(int(total_steps / dt)):
-        engine.run_step()
+        engine.step()  # Usar step() en lugar de run_step()
         states.append(engine.get_simulation_state())
     return states
 
@@ -32,28 +55,24 @@ def calculate_l2_norm(state1, state2):
     return np.sqrt(diff_pop + diff_resource)
 
 def richardson_extrapolation(results, dts):
-    """
-    Aplica la extrapolación de Richardson para estimar el error de truncamiento.
-    """
+    """Aplica la extrapolación de Richardson para estimar el error de truncamiento."""
     if len(results) < 2:
         return {}
 
     extrapolated_errors = {}
     sorted_dts = sorted(dts, reverse=True)
-    r = sorted_dts[0] / sorted_dts[1] # Ratio entre los pasos de tiempo
+    r = sorted_dts[0] / sorted_dts[1]
 
-    # Estimación del orden de convergencia (p) - simplificado
-    # Esto requeriría más puntos y un ajuste para ser robusto
     if len(results) >= 3:
         r2 = sorted_dts[1] / sorted_dts[2]
         norm12 = calculate_l2_norm(results[sorted_dts[0]][-1], results[sorted_dts[1]][-1])
         norm23 = calculate_l2_norm(results[sorted_dts[1]][-1], results[sorted_dts[2]][-1])
         if norm12 > 1e-9 and norm23 > 1e-9:
-            p_est = np.log(norm12 / norm23) / np.log(r) # Using r instead of r2 as an approximation
+            p_est = np.log(norm12 / norm23) / np.log(r)
         else:
-            p_est = 1 # Default order
+            p_est = 1
     else:
-        p_est = 1 # Default order
+        p_est = 1
 
     for i in range(len(sorted_dts) - 1):
         dt_fine = sorted_dts[i+1]
@@ -66,9 +85,7 @@ def richardson_extrapolation(results, dts):
     return extrapolated_errors
 
 def analyze_convergence(initial_conditions, total_steps, dts_to_test):
-    """
-    Realiza el análisis de convergencia completo.
-    """
+    """Realiza el análisis de convergencia completo."""
     results = {}
     for dt in dts_to_test:
         print(f"Running simulation with dt = {dt}")
@@ -83,7 +100,6 @@ def analyze_convergence(initial_conditions, total_steps, dts_to_test):
                 convergence_norms[f"L2({dt}, {finest_dt})"] = norm
 
     richardson_errors = richardson_extrapolation(results, list(dts_to_test))
-
     convergence_achieved = all(norm < CONVERGENCE_TOLERANCE for norm in convergence_norms.values()) if convergence_norms else False
 
     return {
@@ -101,6 +117,8 @@ def load_convergence_results(filepath="data/validation/convergence_results.json"
         return {}
 
 def save_convergence_results(results, filepath="data/validation/convergence_results.json"):
+    import os
+    os.makedirs(os.path.dirname(filepath), exist_ok=True)
     with open(filepath, 'w') as f:
         json.dump(results, f, indent=4)
 

@@ -1,16 +1,704 @@
 {% extends 'base.html' %}
 
-{% block title %}Simulación Territorial{% endblock %}
+{% block title %}Simulación Territorial - Inicio{% endblock %}
+
+{% block head %}
+    <meta name="description" content="Simulación computacional de competencia territorial entre clanes - Página principal">
+    <style>
+        .hero-section {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 4rem 2rem;
+            border-radius: var(--border-radius);
+            text-align: center;
+            margin-bottom: 3rem;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .hero-section::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><pattern id="grid" width="10" height="10" patternUnits="userSpaceOnUse"><path d="M 10 0 L 0 0 0 10" fill="none" stroke="rgba(255,255,255,0.1)" stroke-width="1"/></pattern></defs><rect width="100" height="100" fill="url(%23grid)"/></svg>');
+            opacity: 0.3;
+        }
+        
+        .hero-content {
+            position: relative;
+            z-index: 1;
+        }
+        
+        .hero-section h2 {
+            font-size: 3rem;
+            margin: 0 0 1rem 0;
+            font-weight: 300;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+            border: none;
+        }
+        
+        .hero-section p {
+            font-size: 1.3rem;
+            margin: 0 0 2rem 0;
+            opacity: 0.95;
+            max-width: 800px;
+            margin-left: auto;
+            margin-right: auto;
+            line-height: 1.6;
+        }
+        
+        .cta-button {
+            display: inline-block;
+            background: rgba(255,255,255,0.2);
+            color: white;
+            padding: 1rem 2rem;
+            border-radius: var(--border-radius);
+            text-decoration: none;
+            font-weight: 600;
+            font-size: 1.1rem;
+            transition: var(--transition);
+            border: 2px solid rgba(255,255,255,0.3);
+            backdrop-filter: blur(10px);
+        }
+        
+        .cta-button:hover {
+            background: rgba(255,255,255,0.3);
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.2);
+        }
+        
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 2rem;
+            margin: 3rem 0;
+        }
+        
+        .feature-card {
+            background: white;
+            padding: 2rem;
+            border-radius: var(--border-radius);
+            box-shadow: var(--shadow);
+            text-align: center;
+            transition: var(--transition);
+            border-top: 4px solid var(--secondary-color);
+        }
+        
+        .feature-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+        }
+        
+        .feature-icon {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+            display: block;
+        }
+        
+        .feature-card h3 {
+            color: var(--primary-color);
+            margin: 0 0 1rem 0;
+            font-size: 1.3rem;
+        }
+        
+        .feature-card p {
+            color: var(--dark-gray);
+            line-height: 1.6;
+            margin: 0;
+        }
+        
+        .config-overview {
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            padding: 2rem;
+            border-radius: var(--border-radius);
+            margin: 3rem 0;
+            border-left: 4px solid var(--success-color);
+        }
+        
+        .config-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1.5rem;
+            margin-top: 1.5rem;
+        }
+        
+        .config-item {
+            background: white;
+            padding: 1.5rem;
+            border-radius: var(--border-radius);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        
+        .config-item h4 {
+            margin: 0 0 0.5rem 0;
+            color: var(--primary-color);
+            font-size: 1.1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .config-value {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: var(--secondary-color);
+            margin: 0.5rem 0;
+        }
+        
+        .config-description {
+            font-size: 0.9rem;
+            color: var(--dark-gray);
+            margin: 0;
+        }
+        
+        .quick-start {
+            background: white;
+            padding: 2rem;
+            border-radius: var(--border-radius);
+            box-shadow: var(--shadow);
+            margin: 3rem 0;
+        }
+        
+        .quick-start h3 {
+            color: var(--primary-color);
+            margin: 0 0 1.5rem 0;
+            font-size: 1.5rem;
+            text-align: center;
+        }
+        
+        .steps-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+        
+        .steps-list li {
+            display: flex;
+            align-items: flex-start;
+            margin-bottom: 1.5rem;
+            padding: 1rem;
+            background: var(--light-gray);
+            border-radius: var(--border-radius);
+            transition: var(--transition);
+        }
+        
+        .steps-list li:hover {
+            background: #e8f4f8;
+            transform: translateX(5px);
+        }
+        
+        .step-number {
+            background: var(--secondary-color);
+            color: white;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            margin-right: 1rem;
+            flex-shrink: 0;
+        }
+        
+        .step-content {
+            flex: 1;
+        }
+        
+        .step-title {
+            font-weight: 600;
+            color: var(--primary-color);
+            margin: 0 0 0.5rem 0;
+        }
+        
+        .step-description {
+            color: var(--dark-gray);
+            margin: 0;
+            line-height: 1.5;
+        }
+        
+        .navigation-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1.5rem;
+            margin: 3rem 0;
+        }
+        
+        .nav-card {
+            background: white;
+            padding: 2rem;
+            border-radius: var(--border-radius);
+            box-shadow: var(--shadow);
+            text-align: center;
+            transition: var(--transition);
+            text-decoration: none;
+            color: inherit;
+            border: 2px solid transparent;
+        }
+        
+        .nav-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+            border-color: var(--secondary-color);
+            text-decoration: none;
+            color: inherit;
+        }
+        
+        .nav-card-icon {
+            font-size: 2.5rem;
+            margin-bottom: 1rem;
+            display: block;
+        }
+        
+        .nav-card h4 {
+            color: var(--primary-color);
+            margin: 0 0 0.5rem 0;
+            font-size: 1.2rem;
+        }
+        
+        .nav-card p {
+            color: var(--dark-gray);
+            margin: 0;
+            font-size: 0.95rem;
+            line-height: 1.5;
+        }
+        
+        @media (max-width: 768px) {
+            .hero-section {
+                padding: 2rem 1rem;
+            }
+            
+            .hero-section h2 {
+                font-size: 2rem;
+            }
+            
+            .hero-section p {
+                font-size: 1.1rem;
+            }
+            
+            .features-grid {
+                grid-template-columns: 1fr;
+                gap: 1.5rem;
+            }
+            
+            .config-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+{% endblock %}
 
 {% block content %}
-    <h2>Bienvenido a la Simulación de Competencia Territorial</h2>
-    <p>Este proyecto implementa una simulación computacional para modelar las dinámicas de supervivencia colectiva entre clanes que compiten por territorio y recursos.</p>
-    <p>Utilice el menú de navegación para acceder a la visualización de la simulación.</p>
+    <!-- Hero Section -->
+    <div class="hero-section">
+        <div class="hero-content">
+            <h2>🏛️ Simulación de Competencia Territorial</h2>
+            <p>
+                Explora las dinámicas complejas de supervivencia colectiva a través de una simulación 
+                computacional avanzada donde clanes compiten por territorio y recursos limitados.
+            </p>
+            <a href="{{ url_for('simulation') }}" class="cta-button">
+                🚀 Iniciar Simulación Ahora
+            </a>
+        </div>
+    </div>
 
-    <h3>Configuración Inicial de la Simulación</h3>
-    <ul>
-        <li>Tamaño de la Rejilla: {{ grid_size[0] }}x{{ grid_size[1] }}</li>
-        </ul>
+    <!-- Features Section -->
+    <div class="features-grid">
+        <div class="feature-card">
+            <span class="feature-icon">⚡</span>
+            <h3>Simulación en Tiempo Real</h3>
+            <p>
+                Observa la evolución de los clanes paso a paso con visualización interactiva 
+                y controles de velocidad personalizables.
+            </p>
+        </div>
 
-    <p><a href="{{ url_for('simulation') }}">Ir a la Simulación</a></p>
+        <div class="feature-card">
+            <span class="feature-icon">🔬</span>
+            <h3>Análisis Científico</h3>
+            <p>
+                Herramientas avanzadas de análisis incluyendo métricas de convergencia, 
+                correlaciones y tests de significancia estadística.
+            </p>
+        </div>
+
+        <div class="feature-card">
+            <span class="feature-icon">📊</span>
+            <h3>Visualización Avanzada</h3>
+            <p>
+                Gráficos temporales, mapas de calor y distribuciones de probabilidad 
+                para entender los patrones emergentes.
+            </p>
+        </div>
+
+        <div class="feature-card">
+            <span class="feature-icon">⚙️</span>
+            <h3>Configuración Flexible</h3>
+            <p>
+                Múltiples configuraciones predefinidas y modos de simulación 
+                (determinista y estocástico) para diferentes escenarios.
+            </p>
+        </div>
+
+        <div class="feature-card">
+            <span class="feature-icon">💾</span>
+            <h3>Exportación de Datos</h3>
+            <p>
+                Exporta resultados en formatos CSV, JSON y genera reportes HTML 
+                completos para análisis posterior.
+            </p>
+        </div>
+
+        <div class="feature-card">
+            <span class="feature-icon">🎮</span>
+            <h3>Interfaz Intuitiva</h3>
+            <p>
+                Controles fáciles de usar con atajos de teclado, tooltips informativos 
+                y retroalimentación visual en tiempo real.
+            </p>
+        </div>
+    </div>
+
+    <!-- Configuration Overview -->
+    <div class="config-overview">
+        <h3>📋 Configuración Actual del Sistema</h3>
+        <p>
+            La simulación está configurada con los siguientes parámetros base. 
+            Puedes modificarlos en la sección de simulación para explorar diferentes escenarios.
+        </p>
+        
+        <div class="config-grid">
+            <div class="config-item">
+                <h4>🗺️ Dimensiones del Mapa</h4>
+                <div class="config-value">{{ grid_size[0] }} × {{ grid_size[1] }}</div>
+                <p class="config-description">Celdas de la rejilla de simulación</p>
+            </div>
+            
+            <div class="config-item">
+                <h4>🏛️ Clanes Iniciales</h4>
+                <div class="config-value">{{ initial_clans or 'Variable' }}</div>
+                <p class="config-description">Número de clanes al inicio</p>
+            </div>
+            
+            <div class="config-item">
+                <h4>🌿 Densidad de Recursos</h4>
+                <div class="config-value">{{ resource_density or 'Media' }}</div>
+                <p class="config-description">Distribución inicial de recursos</p>
+            </div>
+            
+            <div class="config-item">
+                <h4>⚡ Velocidad Base</h4>
+                <div class="config-value">1.0x</div>
+                <p class="config-description">Velocidad de simulación por defecto</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Start Guide -->
+    <div class="quick-start">
+        <h3>🚀 Guía de Inicio Rápido</h3>
+        
+        <ol class="steps-list">
+            <li>
+                <div class="step-number">1</div>
+                <div class="step-content">
+                    <div class="step-title">Acceder a la Simulación</div>
+                    <div class="step-description">
+                        Haz clic en "Simulación" en el menú de navegación o usa el botón de arriba 
+                        para acceder a la interfaz principal de simulación.
+                    </div>
+                </div>
+            </li>
+            
+            <li>
+                <div class="step-number">2</div>
+                <div class="step-content">
+                    <div class="step-title">Configurar Parámetros</div>
+                    <div class="step-description">
+                        Selecciona el modo de simulación (estocástico o determinista) y 
+                        elige una configuración predefinida según el escenario que quieras explorar.
+                    </div>
+                </div>
+            </li>
+            
+            <li>
+                <div class="step-number">3</div>
+                <div class="step-content">
+                    <div class="step-title">Iniciar y Controlar</div>
+                    <div class="step-description">
+                        Usa los controles para iniciar, pausar o avanzar paso a paso. 
+                        Ajusta la velocidad según tus necesidades de observación.
+                    </div>
+                </div>
+            </li>
+            
+                            <li>
+                <div class="step-number">4</div>
+                <div class="step-content">
+                    <div class="step-title">Analizar Resultados</div>
+                    <div class="step-description">
+                        Observa las métricas en tiempo real y usa las herramientas de análisis 
+                        para estudiar patrones, convergencia y comportamientos emergentes.
+                    </div>
+                </div>
+            </li>
+            
+            <li>
+                <div class="step-number">5</div>
+                <div class="step-content">
+                    <div class="step-title">Exportar y Compartir</div>
+                    <div class="step-description">
+                        Exporta los datos y reportes para análisis detallado o comparte 
+                        tus hallazgos con otros investigadores.
+                    </div>
+                </div>
+            </li>
+        </ol>
+    </div>
+
+    <!-- Navigation Cards -->
+    <div class="navigation-cards">
+        <a href="{{ url_for('simulation') }}" class="nav-card">
+            <span class="nav-card-icon">🎮</span>
+            <h4>Ejecutar Simulación</h4>
+            <p>
+                Inicia una nueva simulación con controles interactivos 
+                y visualización en tiempo real del comportamiento de los clanes.
+            </p>
+        </a>
+
+        <a href="{{ url_for('conservation_analysis') }}" class="nav-card">
+            <span class="nav-card-icon">🔬</span>
+            <h4>Análisis de Conservación</h4>
+            <p>
+                Estudia las leyes de conservación y equilibrios del sistema, 
+                incluyendo la conservación de recursos y poblaciones.
+            </p>
+        </a>
+
+        <a href="{{ url_for('convergence_analysis') }}" class="nav-card">
+            <span class="nav-card-icon">📈</span>
+            <h4>Análisis de Convergencia</h4>
+            <p>
+                Examina la estabilidad del sistema y los puntos de equilibrio 
+                a los que tienden las poblaciones a largo plazo.
+            </p>
+        </a>
+
+        <a href="{{ url_for('sensitivity_analysis') }}" class="nav-card">
+            <span class="nav-card-icon">⚙️</span>
+            <h4>Análisis de Sensibilidad</h4>
+            <p>
+                Evalúa cómo los cambios en los parámetros iniciales 
+                afectan los resultados finales de la simulación.
+            </p>
+        </a>
+    </div>
+
+    <!-- Technical Information -->
+    <div class="analysis-section">
+        <h3>🔬 Fundamentos Científicos</h3>
+        
+        <div class="form-row">
+            <div>
+                <h4>📐 Modelado Matemático</h4>
+                <p>
+                    La simulación se basa en un modelo de autómata celular donde cada celda 
+                    representa una unidad espacial con recursos renovables. Los clanes siguen 
+                    reglas de comportamiento basadas en teoría de juegos y ecología poblacional.
+                </p>
+                
+                <h4>🎯 Objetivos de Investigación</h4>
+                <ul>
+                    <li>Estudiar la emergencia de patrones territoriales</li>
+                    <li>Analizar estrategias de supervivencia colectiva</li>
+                    <li>Evaluar la sostenibilidad de diferentes configuraciones</li>
+                    <li>Identificar condiciones de equilibrio y colapso</li>
+                </ul>
+            </div>
+            
+            <div>
+                <h4>⚡ Implementación Técnica</h4>
+                <p>
+                    El sistema utiliza WebSockets para comunicación en tiempo real, 
+                    Canvas 2D para renderizado eficiente y Chart.js para visualización 
+                    de datos. El backend en Python maneja la lógica de simulación.
+                </p>
+                
+                <h4>📊 Métricas Clave</h4>
+                <ul>
+                    <li><strong>Población Total:</strong> Suma de todos los miembros de clanes</li>
+                    <li><strong>Recursos Disponibles:</strong> Cantidad total de recursos renovables</li>
+                    <li><strong>Índice de Fragmentación:</strong> Medida de dispersión territorial</li>
+                    <li><strong>Estabilidad del Sistema:</strong> Varianza en el tiempo</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- System Requirements -->
+    <div class="analysis-section" style="background: linear-gradient(135deg, #ffeaa7 0%, #fab1a0 100%); border-left-color: var(--warning-color);">
+        <h3>💻 Requisitos del Sistema</h3>
+        
+        <div class="form-row">
+            <div>
+                <h4>🌐 Navegador Recomendado</h4>
+                <ul>
+                    <li>Chrome 90+ / Firefox 88+ / Safari 14+</li>
+                    <li>Soporte para WebSockets y Canvas 2D</li>
+                    <li>JavaScript habilitado</li>
+                    <li>Resolución mínima: 1024x768</li>
+                </ul>
+            </div>
+            
+            <div>
+                <h4>⚡ Rendimiento</h4>
+                <ul>
+                    <li>RAM: Mínimo 4GB para simulaciones grandes</li>
+                    <li>CPU: Procesador multi-núcleo recomendado</li>
+                    <li>Red: Conexión estable para tiempo real</li>
+                    <li>GPU: Aceleración de hardware para Canvas</li>
+                </ul>
+            </div>
+            
+            <div>
+                <h4>📱 Compatibilidad</h4>
+                <ul>
+                    <li>✅ Escritorio (Windows, macOS, Linux)</li>
+                    <li>⚠️ Tablets (funcionalidad limitada)</li>
+                    <li>❌ Móviles (no recomendado)</li>
+                    <li>🔄 Modo offline no disponible</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- Recent Updates -->
+    <div class="analysis-section" style="background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%); border-left-color: var(--success-color);">
+        <h3>🆕 Actualizaciones Recientes (v2.0)</h3>
+        
+        <div class="form-row">
+            <div>
+                <h4>✨ Nuevas Características</h4>
+                <ul>
+                    <li>Interfaz completamente rediseñada</li>
+                    <li>Métricas de rendimiento en tiempo real</li>
+                    <li>Modo de análisis de sensibilidad</li>
+                    <li>Exportación mejorada de datos</li>
+                    <li>Atajos de teclado personalizables</li>
+                </ul>
+            </div>
+            
+            <div>
+                <h4>🔧 Mejoras Técnicas</h4>
+                <ul>
+                    <li>Optimización del renderizado Canvas</li>
+                    <li>Reducción del uso de memoria</li>
+                    <li>Mejor manejo de errores</li>
+                    <li>Comunicación WebSocket más estable</li>
+                    <li>Responsive design mejorado</li>
+                </ul>
+            </div>
+            
+            <div>
+                <h4>🐛 Correcciones</h4>
+                <ul>
+                    <li>Sincronización de estado mejorada</li>
+                    <li>Prevención de memory leaks</li>
+                    <li>Manejo de desconexiones</li>
+                    <li>Validación de configuraciones</li>
+                    <li>Compatibilidad con navegadores antiguos</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- Call to Action Footer -->
+    <div class="hero-section" style="margin-top: 3rem;">
+        <div class="hero-content">
+            <h3 style="margin: 0 0 1rem 0; font-size: 1.8rem;">¿Listo para Explorar?</h3>
+            <p style="margin: 0 0 2rem 0; font-size: 1.1rem;">
+                Comienza tu investigación en dinámicas territoriales y descubre 
+                los patrones emergentes de la competencia entre clanes.
+            </p>
+            <div style="display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap;">
+                <a href="{{ url_for('simulation') }}" class="cta-button">
+                    🚀 Iniciar Simulación
+                </a>
+                <a href="{{ url_for('conservation_analysis') }}" class="cta-button">
+                    🔬 Ver Análisis
+                </a>
+            </div>
+        </div>
+    </div>
+{% endblock %}
+
+{% block scripts %}
+    <script>
+        // Page-specific JavaScript
+        document.addEventListener('DOMContentLoaded', function() {
+            // Animate feature cards on scroll
+            const observerOptions = {
+                threshold: 0.1,
+                rootMargin: '0px 0px -50px 0px'
+            };
+            
+            const observer = new IntersectionObserver(function(entries) {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        entry.target.style.opacity = '1';
+                        entry.target.style.transform = 'translateY(0)';
+                    }
+                });
+            }, observerOptions);
+            
+            // Apply animation to feature cards
+            document.querySelectorAll('.feature-card, .nav-card').forEach(card => {
+                card.style.opacity = '0';
+                card.style.transform = 'translateY(20px)';
+                card.style.transition = 'opacity 0.6s ease, transform 0.6s ease';
+                observer.observe(card);
+            });
+            
+            // Add click tracking for analytics (if needed)
+            document.querySelectorAll('.cta-button, .nav-card').forEach(element => {
+                element.addEventListener('click', function(e) {
+                    // Track user interactions
+                    console.log('User clicked:', this.textContent.trim());
+                });
+            });
+            
+            // Preload simulation page for faster navigation
+            const simulationLink = document.querySelector('a[href*="simulation"]');
+            if (simulationLink) {
+                setTimeout(() => {
+                    const link = document.createElement('link');
+                    link.rel = 'prefetch';
+                    link.href = simulationLink.href;
+                    document.head.appendChild(link);
+                }, 2000);
+            }
+        });
+        
+        // Add some interactive elements
+        function addInteractiveElements() {
+            const configItems = document.querySelectorAll('.config-item');
+            configItems.forEach(item => {
+                item.addEventListener('mouseenter', function() {
+                    this.style.transform = 'scale(1.02)';
+                });
+                
+                item.addEventListener('mouseleave', function() {
+                    this.style.transform = 'scale(1)';
+                });
+            });
+        }
+        
+        // Initialize interactive elements
+        document.addEventListener('DOMContentLoaded', addInteractiveElements);
+    </script>
 {% endblock %}
