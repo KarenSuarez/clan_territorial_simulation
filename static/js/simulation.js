@@ -2,8 +2,7 @@
 console.log('🚀 Iniciando simulación.js...');
 
 document.addEventListener('DOMContentLoaded', () => {
-    console.log('📄 DOM cargado, configurando simulación...');
-    
+    console.log('📄 DOM cargado, configurando simulación...'); 
     // Elementos del DOM
     const gridCanvas = document.getElementById('gridCanvas');
     const ctx = gridCanvas ? gridCanvas.getContext('2d') : null;
@@ -26,21 +25,17 @@ document.addEventListener('DOMContentLoaded', () => {
     const timeElapsedDisplay = document.getElementById('timeElapsed');
     const simulationStatus = document.getElementById('simulationStatus');
     const statusIndicator = document.getElementById('statusIndicator');
-    const modeDisplay = document.getElementById('modeDisplay'); 
+    const modeDisplay = document.getElementById('modeDisplay'); // Nuevo elemento para el modo
     
     // Elementos de control
     const speedSlider = document.getElementById('speedSlider');
     const speedValue = document.getElementById('speedValue');
     const autoResetCheckbox = document.getElementById('autoReset');
     const maxStepsInput = document.getElementById('maxStepsInput'); // Input para maxSteps
-    const configForm = document.getElementById('configForm');
-    console.log('DEBUG: configForm element:', configForm); // Añade esto
-
-    const simulationModeSelect = document.getElementById('simulation_mode');
-    const configFileSelect = document.getElementById('config_file');
-    const seedInput = document.getElementById('seed');
-    
-    
+    const simulationModeSelect = document.getElementById('simulation_mode'); // Select de modo
+    const configFileSelect = document.getElementById('config_file'); // Select de archivo de config
+    const seedInput = document.getElementById('seed'); // Input de semilla
+   
     // Estado de la simulación
     let simulationData = null;
     let simulationRunning = false;
@@ -84,9 +79,8 @@ document.addEventListener('DOMContentLoaded', () => {
             socket.on('connect', () => {
                 console.log('✅ WebSocket conectado');
                 updateConnectionStatus(true);
-                socket.emit('request_state'); // Solicitar estado inicial
-                socket.emit('get_speed'); // Solicitar velocidad actual
-                socket.emit('get_simulation_config'); // Solicitar configuración actual
+                // Solicitar estado inicial al conectar
+                socket.emit('request_state');
             });
             
             socket.on('disconnect', () => {
@@ -95,8 +89,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 simulationRunning = false;
                 updateStatusIndicator(false);
                 updateButtonStates();
-                // Notificación de desconexión
-                showNotification('Conexión con el servidor perdida.', 'error', 0); // Mostrar indefinidamente
             });
             
             socket.on('simulation_state', (data) => {
@@ -110,7 +102,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 simulationRunning = true;
                 updateStatusIndicator(true);
                 updateButtonStates();
-                showNotification('Simulación iniciada', 'success');
             });
             
             socket.on('simulation_terminated', (data) => {
@@ -145,29 +136,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 console.log('📥 Configuración recibida:', config);
                 maxSteps = config.max_steps || 500;
                 autoStop = config.auto_stop !== undefined ? config.auto_stop : true;
-                if (simulationModeSelect) simulationModeSelect.value = config.current_mode || 'stochastic';
-                if (configFileSelect) configFileSelect.value = config.current_config_file || 'stochastic_default';
-                if (seedInput) seedInput.value = config.current_seed !== null ? config.current_seed : '';
-
                 updateControlsDisplay();
             });
-
-            socket.on('configuration_applied', (data) => {
-                console.log('✅ Configuración aplicada:', data.message);
-                showNotification(data.message, 'success');
-            });
-
-            socket.on('configuration_error', (error) => {
-                console.error('❌ Error aplicando configuración:', error);
-                showNotification('Error aplicando configuración: ' + error.error, 'error');
-            });
+            
+            // Solicitar configuración inicial
+            socket.emit('get_speed');
+            socket.emit('get_simulation_config');
             
         } catch (error) {
             console.error('❌ Error configurando WebSocket:', error);
         }
     }
     
-function setupEventListeners() {
+    function setupEventListeners() {
         console.log('🎮 Configurando controles...');
         
         if (playButton) {
@@ -205,6 +186,7 @@ function setupEventListeners() {
             });
         }
         
+        // Auto-stop checkbox
         if (autoResetCheckbox) {
             autoResetCheckbox.addEventListener('change', () => {
                 console.log('🔄 Auto-stop toggled:', autoResetCheckbox.checked);
@@ -212,50 +194,21 @@ function setupEventListeners() {
             });
         }
 
+        // Event listener para el input de maxSteps
         if (maxStepsInput) {
-            maxStepsInput.addEventListener('change', () => {
-                updateMaxSteps();
-            });
+        maxStepsInput.addEventListener('change', updateMaxSteps);
         }
-
-        // Interceptar el envío del formulario de configuración
-        if (configForm) {
-        console.log("DEBUG: Formulario de configuración encontrado. Adjuntando evento 'submit'.");
-        configForm.addEventListener('submit', (event) => {
-        console.log("DEBUG: Evento 'submit' del formulario detectado.");
-        event.preventDefault(); // ¡Esta línea es la clave!
-        console.log('DEBUG: event.preventDefault() ejecutado. La página NO DEBERÍA recargarse.');
-
-        // Recolectar datos del formulario
-        const mode = simulationModeSelect.value;
-        const configFile = configFileSelect.value;
-        const seed = seedInput.value;
-
-        if (socket && socket.connected) {
-            console.log('DEBUG: Enviando configure_simulation via WebSocket.');
-            socket.emit('configure_simulation', { 
-                mode: mode, 
-                config_file: configFile, 
-                seed: seed 
-            });
-            showNotification('Aplicando configuración...', 'info');
-        } else {
-            console.error('DEBUG: Socket no conectado al intentar configurar.');
-            showNotification('Error: Cliente WebSocket desconectado. No se puede aplicar la configuración.', 'error');
-        }
-    });
-    } else {
-        console.error("DEBUG: ¡El formulario de configuración con ID 'configForm' NO FUE ENCONTRADO!");
-    }
 
         // Auto-save y restore de las selecciones de modo y configuración
         if (simulationModeSelect) {
             simulationModeSelect.addEventListener('change', function() {
                 localStorage.setItem('sim_mode', this.value);
+                // Si cambia a determinista, sugerir una semilla
                 if (this.value === 'deterministic' && !seedInput.value) {
                     seedInput.value = Math.floor(Math.random() * 999999) + 1;
                 }
             });
+            // Restaurar al cargar
             const savedMode = localStorage.getItem('sim_mode');
             if (savedMode && simulationModeSelect.querySelector(`option[value="${savedMode}"]`)) {
                 simulationModeSelect.value = savedMode;
@@ -266,34 +219,48 @@ function setupEventListeners() {
             configFileSelect.addEventListener('change', function() {
                 localStorage.setItem('sim_config', this.value);
             });
+            // Restaurar al cargar
             const savedConfig = localStorage.getItem('sim_config');
             if (savedConfig && configFileSelect.querySelector(`option[value="${savedConfig}"]`)) {
                 configFileSelect.value = savedConfig;
             }
         }
-        // No guardamos la semilla en localStorage
+
         
+        // Atajos de teclado
         document.addEventListener('keydown', (event) => {
             if (event.target.tagName === 'INPUT') return;
+            
             switch(event.key) {
                 case ' ':
                     event.preventDefault();
-                    if (simulationRunning) { pauseSimulation(); } else { startSimulation(); }
+                    if (simulationRunning) {
+                        pauseSimulation();
+                    } else {
+                        startSimulation();
+                    }
                     break;
-                case 'r': event.preventDefault(); resetSimulation(); break;
-                case 's': event.preventDefault(); stepSimulation(); break;
+                case 'r':
+                    event.preventDefault();
+                    resetSimulation();
+                    break;
+                case 's':
+                    event.preventDefault();
+                    stepSimulation();
+                    break;
             }
         });
     }
     
-      function handleSimulationState(data) {
-        console.log(`📥 Estado recibido: ${data.clans ? data.clans.length : 0} clanes, paso ${data.step}`);
+    function handleSimulationState(data) {
+        console.log(`📥 Estado recibido: ${data.clans ? data.clans.length : 0} clanes, paso ${data.step}, modo ${data.mode}`);
         
         simulationData = data;
         
+        // Actualizar estado de ejecución basado en datos del servidor
         simulationRunning = data.running || false;
-        maxSteps = data.max_steps || maxSteps;
-        autoStop = data.auto_stop !== undefined ? data.auto_stop : true;
+        maxSteps = data.max_steps || maxSteps; // Actualizar maxSteps desde el servidor
+        autoStop = data.auto_stop !== undefined ? data.auto_stop : true; // Actualizar autoStop desde el servidor
 
         updateStatusIndicator(simulationRunning);
         updateButtonStates();
@@ -302,21 +269,7 @@ function setupEventListeners() {
         updateMetrics();
         updateClanMetrics();
         updateProgressIndicator();
-        updateControlsDisplay();
-        
-        // **Líneas del gráfico COMENTADAS TEMPORALMENTE**
-        /*
-        if (window.ChartController && simulationData.last_populations && simulationData.last_resources) {
-            const labels = Array.from({length: simulationData.last_populations.length}, 
-                                      (_, i) => (simulationData.step - simulationData.last_populations.length + 1) + i);
-            
-            window.ChartController.updatePopulationChart(
-                simulationData.last_populations, 
-                simulationData.last_resources, 
-                labels
-            );
-        }
-        */
+        updateControlsDisplay(); // Asegurarse de que los controles reflejen el estado del servidor
     }
     
     function updateStatusIndicator(isRunning) {
@@ -500,7 +453,7 @@ function setupEventListeners() {
         }
     }
     
-     function updateControlsDisplay() {
+   function updateControlsDisplay() {
         if (autoResetCheckbox) {
             autoResetCheckbox.checked = autoStop;
         }
@@ -530,7 +483,7 @@ function setupEventListeners() {
             }
         }
     }
-    
+
     function setMaxSteps(newMaxSteps) {
         if (socket) {
             socket.emit('set_max_steps', { max_steps: newMaxSteps });
@@ -688,26 +641,18 @@ function setupEventListeners() {
         ctx.strokeRect(x - width/2, y, width, barHeight);
     }
     
-     function updateMetrics() {
+    function updateMetrics() {
         if (!simulationData) return;
-
-        console.log("DEBUG_RECEIVE: Datos recibidos del servidor:", data);
         
         // Acceder a metrics del engine, que ahora viene en simulation_data.system_metrics
         const totalPop = simulationData.system_metrics?.total_population || 0;
-        const totalRes = simulationData.system_metrics?.total_resources || 0; 
-
-        console.log("DEBUG_RECEIVE: Population:", data.system_metrics?.total_population);
-        console.log("DEBUG_RECEIVE: Resources:", data.system_metrics?.total_resources);
-// 
+        const totalRes = simulationData.system_metrics?.total_resources || 0; // Usar el total de recursos del engine
 
         if (populationDisplay) populationDisplay.textContent = totalPop;
         if (totalResourceDisplay) totalResourceDisplay.textContent = totalRes.toFixed(1);
-        if (populationDisplay) console.log("DEBUG_UPDATE: Updating population to:", totalPop);
-        if (totalResourceDisplay) console.log("DEBUG_UPDATE: Updating resources to:", totalRes);
         if (stepCountDisplay) stepCountDisplay.textContent = `${simulationData.step || 0}/${maxSteps}`;
         if (timeElapsedDisplay) timeElapsedDisplay.textContent = formatTime(simulationData.time || 0);
-        if (modeDisplay) modeDisplay.textContent = simulationData.mode.charAt(0).toUpperCase() + simulationData.mode.slice(1);
+        // El modo ya se actualiza en updateControlsDisplay
     }
     
     function updateClanMetrics() {
@@ -864,19 +809,22 @@ function setupEventListeners() {
     
     console.log('✅ Simulación completamente configurada con estado dinámico');
 
-       window.exportCurrentData = function() {
+ window.exportCurrentData = function() { // Hacerla global
         if (window.SimulationController && window.SimulationController.getState()) {
             const data = {
                 state: window.SimulationController.getState(),
+                // 'history' se debe obtener de otra manera si no está en el estado o si el motor no lo expone así
+                // Por ahora, getHistory en SimulationController es un placeholder.
+                // Lo ideal sería que el engine lo exponga o que el backend lo envíe bajo petición.
                 history: {
-                    population: simulationData.last_populations || [],
-                    resources: simulationData.last_resources || []
+                    population: simulationData.last_populations || [], // Usar last_populations del app.py
+                    resources: simulationData.system_metrics?.total_resources_history || [] // Si el motor lo expone
                 },
                 timestamp: new Date().toISOString(),
                 config: {
-                    mode: simulationModeSelect?.value,
-                    config_file: configFileSelect?.value,
-                    seed: seedInput?.value
+                    mode: document.getElementById('simulation_mode')?.value,
+                    config_file: document.getElementById('config_file')?.value,
+                    seed: document.getElementById('seed')?.value
                 }
             };
 
@@ -894,8 +842,8 @@ function setupEventListeners() {
             showNotification('No hay datos de simulación disponibles para exportar.', 'error');
         }
     }
-});
 
+});
 
 // Función global para actualizar máximo de pasos (llamada desde HTML)
 function updateMaxSteps() {

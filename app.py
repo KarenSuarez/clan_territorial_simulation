@@ -1,5 +1,4 @@
-# app.py - Versión refactorizada para usar SimulationEngine y configuraciones externas
-
+# app.py - Versión final funcional completa
 from flask import Flask, render_template, request
 from flask_socketio import SocketIO, emit
 import numpy as np
@@ -8,17 +7,6 @@ import os
 import time
 from datetime import datetime
 from threading import Thread, Lock
-import random 
-
-# Importar las clases de modelos y motor
-from models.environment import Environment
-from models.clan import Clan
-from simulation.engine import SimulationEngine
-from simulation.modes import StochasticMode, DeterministicMode
-# Importamos config_default para valores por defecto si no se carga un JSON
-import data.configs.config_default as default_config 
-from simulation.random_generators import MersenneTwister # Importar MersenneTwister aquí para crear la instancia inicial
-
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'secret!'
@@ -26,19 +14,10 @@ socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
 
 # Variables globales con lock para thread safety
 simulation_lock = Lock()
-current_simulation_engine = None # Instancia del motor de simulación
-current_config = {} # Configuración cargada
-current_simulation_mode_name = 'stochastic' # Para el frontend
-# Modos y RNG globales para que puedan ser usados por cualquier parte que lo necesite (p.ej. initialize_simulation)
-current_mode_instance = None # Instancia del modo (StochasticMode o DeterministicMode)
-global_rng_seed = None # Semilla global para control total
-# Instancia del RNG globalmente, se usará para inicializar los modos
-main_rng = MersenneTwister(random.randint(0, 10000000)) 
-
 simulation_data = {
     'running': False,
-    'clans': [], # Esta lista se mantendrá para compatibilidad con el frontend, pero su contenido viene del engine
-    'resources': None, # Esto ya no es necesario, el engine.environment maneja los recursos
+    'clans': [],
+    'resources': None,
     'step': 0,
     'time': 0.0,
     'speed_multiplier': 1.0,
@@ -51,246 +30,183 @@ simulation_data = {
     'last_populations': []
 }
 
-CONFIG_DIR = os.path.join(os.path.dirname(__file__), 'data', 'configs')
+# Configuración simple
+GRID_SIZE = 50
+NUM_CLANS = 3
 
-
-def load_config_file(config_name):
-    """Carga una configuración desde un archivo JSON."""
-    config_path = os.path.join(CONFIG_DIR, f"{config_name}.json")
-    if os.path.exists(config_path):
-        with open(config_path, 'r') as f:
-            return json.load(f)
-    print(f"⚠️ Archivo de configuración '{config_name}.json' no encontrado. Usando valores por defecto o la configuración actual.")
-    return {}
-
-def initialize_simulation(mode_name='stochastic', config_name='stochastic_default', seed=None):
-    """Inicializa la simulación, cargando la configuración y estableciendo el modo."""
-    global current_simulation_engine, current_config, current_simulation_mode_name, current_mode_instance, global_rng_seed, main_rng
-
+def initialize_simulation():
+    """Inicializa la simulación con datos básicos"""
+    global simulation_data
+    
     with simulation_lock:
         print("🚀 Inicializando simulación...")
-
-        # 1. Cargar configuración base
-        base_config = load_config_file(config_name)
-        # Combinar con config_default para tener valores por defecto si no están en el JSON
-        combined_config = {
-            'GRID_SIZE': default_config.GRID_SIZE,
-            'INITIAL_CLAN_COUNT': default_config.INITIAL_CLAN_COUNT,
-            'MIN_CLAN_SIZE': default_config.MIN_CLAN_SIZE,
-            'MAX_CLAN_SIZE': default_config.MAX_CLAN_SIZE,
-            'RESOURCE_MAX': default_config.RESOURCE_MAX,
-            'RESOURCE_REGEN_RATE': default_config.RESOURCE_REGEN_RATE,
-            'RESOURCE_REQUIRED_PER_INDIVIDUAL': default_config.RESOURCE_REQUIRED_PER_INDIVIDUAL,
-            'MORTALITY_STARVATION_MAX': default_config.MORTALITY_STARVATION_MAX,
-            'simulation_steps': simulation_data['max_steps'], # Default from app.py initially
-            'dt': 0.2, # Default dt
-            'movement_noise_std': 0.0, # Default for stochastic mode (specific to modes)
-            'forage_probability': 1.0, # Default for stochastic mode (specific to modes)
-            'starvation_mortality_rate': 0.1 # Default para el clan
-        }
-        combined_config.update(base_config)
-        current_config = combined_config
         
-        # Establecer la semilla global para la inicialización y los modos
-        if seed is not None:
-            global_rng_seed = seed
-        else: # Si no se especifica, usar una nueva semilla aleatoria (para reproducibilidad incluso en modo estocástico)
-            global_rng_seed = main_rng.random_randint(1, 10000000) # Nueva semilla aleatoria
+        # Crear grid de recursos
+        simulation_data['resources'] = np.random.uniform(30, 80, (GRID_SIZE, GRID_SIZE))
         
-        main_rng.rng.seed(global_rng_seed) # Reinicializar el RNG principal
-
-        # 2. Configurar el modo de simulación y el RNG
-        current_simulation_mode_name = mode_name
-        if mode_name == 'stochastic':
-            current_mode_instance = StochasticMode(seed=global_rng_seed)
-        elif mode_name == 'deterministic':
-            current_mode_instance = DeterministicMode(seed=global_rng_seed)
-        else:
-            print(f"❌ Modo '{mode_name}' no reconocido. Usando Estocástico por defecto.")
-            current_simulation_mode_name = 'stochastic'
-            current_mode_instance = StochasticMode(seed=global_rng_seed)
-        
-        # Aplicar configuraciones específicas del modo cargadas del JSON
-        current_mode_instance.config['movement_noise_std'] = current_config.get('movement_noise_std', 0.1)
-        current_mode_instance.config['forage_probability'] = current_config.get('forage_probability', 0.8)
-        
-# 3. Inicializar entorno con tamaño de grid desde la configuración
-        print(f"DEBUG: Initializing Environment with:")
-        print(f"  grid_size: {current_config.get('GRID_SIZE')}")
-        print(f"  max_resource: {current_config.get('RESOURCE_MAX')}")
-        print(f"  regeneration_rate: {current_config.get('RESOURCE_REGEN_RATE')}")
-
-        env = Environment(
-            grid_size=current_config['GRID_SIZE'],
-            max_resource=current_config['RESOURCE_MAX'],
-            regeneration_rate=current_config['RESOURCE_REGEN_RATE']
-)
-        
-        # Inicializar recursos del entorno de forma estocástica (usando el RNG del modo)
-        # Esto se puede hacer más sofisticado con diferentes distribuciones
-        env.grid = current_mode_instance.rng.random_uniform(
-            current_config['RESOURCE_MAX'] * 0.3, # Min 30% del max
-            current_config['RESOURCE_MAX'] * 0.8, # Max 80% del max
-            current_config['GRID_SIZE']
-        )
-
-
-        # 4. Crear clanes
-        clans = []
-        num_clans_to_create = current_config['INITIAL_CLAN_COUNT']
-        for i in range(num_clans_to_create):
-            initial_size = current_mode_instance.rng.random_randint(current_config['MIN_CLAN_SIZE'], current_config['MAX_CLAN_SIZE'])
-            # Posiciones aleatorias dentro del grid usando el RNG del modo
-            pos_x = current_mode_instance.rng.random_uniform(0, current_config['GRID_SIZE'][0])
-            pos_y = current_mode_instance.rng.random_uniform(0, current_config['GRID_SIZE'][1])
-            initial_position = np.array([pos_x, pos_y])
-
-            clan_params = {
-                'resource_required_per_individual': current_config['RESOURCE_REQUIRED_PER_INDIVIDUAL'],
-                'starvation_mortality_rate': current_config['starvation_mortality_rate'],
-                'birth_rate': current_config.get('birth_rate', 0.1),
-                'natural_death_rate': current_config.get('natural_death_rate', 0.05),
-                'movement_speed': current_config.get('movement_speed', 1.0),
-                'perception_radius': current_config.get('perception_radius', 5),
-                'cooperation_tendency': current_config.get('cooperation_tendency', 0.6),
-                'aggressiveness': current_config.get('aggressiveness', 0.3),
-                'territorial_expansion_rate': current_config.get('territorial_expansion_rate', 0.05),
-                'exploration_tendency': current_config.get('exploration_tendency', 0.5)
+        # Crear clanes con posiciones aleatorias
+        simulation_data['clans'] = []
+        for i in range(NUM_CLANS):
+            clan = {
+                'id': i + 1,
+                'size': np.random.randint(8, 15),
+                'x': np.random.uniform(10, GRID_SIZE - 10),
+                'y': np.random.uniform(10, GRID_SIZE - 10),
+                'energy': 100.0,
+                'state': 'foraging',
+                'direction_x': np.random.uniform(-1, 1),
+                'direction_y': np.random.uniform(-1, 1)
             }
-            new_clan = Clan(i + 1, initial_size, initial_position, clan_params)
-            new_clan.set_rng(current_mode_instance.rng) # Inyectar el RNG del modo en el clan
-            clans.append(new_clan)
-            print(f"✅ Clan {clans[-1].id}: tamaño={clans[-1].size}, pos=({clans[-1].position[0]:.1f}, {clans[-1].position[1]:.1f})")
-
-        # 5. Instanciar SimulationEngine
-        simulation_data['max_steps'] = current_config.get('simulation_steps', 500)
-        simulation_data['dt'] = current_config.get('dt', 0.2)
-        simulation_data['extinction_threshold'] = current_config.get('extinction_threshold', 5) # Ajustar este default si es necesario
-        simulation_data['convergence_threshold'] = current_config.get('convergence_threshold', 50) # Ajustar este default si es necesario
-
-        current_simulation_engine = SimulationEngine(
-            environment=env,
-            initial_clans=clans,
-            simulation_mode=current_mode_instance, # Pasar la instancia del modo
-            dt=simulation_data['dt'],
-            seed=global_rng_seed # La semilla se maneja dentro del modo y Engine
-        )
+            simulation_data['clans'].append(clan)
+            print(f"✅ Clan {clan['id']}: tamaño={clan['size']}, pos=({clan['x']:.1f}, {clan['y']:.1f})")
         
-        # Resetear datos de simulación
         simulation_data['step'] = 0
         simulation_data['time'] = 0.0
         simulation_data['running'] = False
         simulation_data['speed_multiplier'] = 1.0
-        simulation_data['update_interval'] = 1.0 # Intervalo base para socketio.sleep
+        simulation_data['update_interval'] = 1.0
         simulation_data['extinction_counter'] = 0
         simulation_data['last_populations'] = []
-        simulation_data['last_resources'] = [] # Nuevo historial de recursos para el frontend
-
-        print(f"✅ Simulación inicializada con {len(current_simulation_engine.clans)} clanes en modo {current_simulation_mode_name}")
-        print(f"   Grid: {env.grid_size[0]}x{env.grid_size[1]}, Max Steps: {simulation_data['max_steps']}")
-
+        
+        print(f"✅ Simulación inicializada con {len(simulation_data['clans'])} clanes")
 
 def simulation_step():
-    """Ejecuta un paso de simulación utilizando el motor."""
-    global simulation_data, current_simulation_engine
-
+    """Ejecuta un paso de simulación"""
+    global simulation_data
+    
     with simulation_lock:
-        if not simulation_data['running'] or current_simulation_engine is None:
+        if not simulation_data['running']:
             return None
-
-        # print(f"🔄 Ejecutando paso {simulation_data['step'] + 1} del motor")
+            
+        print(f"🔄 Ejecutando paso {simulation_data['step'] + 1}")
         
-        current_simulation_engine.run_step() # El motor avanza su propio tiempo y step_count
-
-        # Sincronizar datos globales con el motor
-        simulation_data['step'] = current_simulation_engine.step_count
-        simulation_data['time'] = current_simulation_engine.time
+        # Regenerar recursos ligeramente
+        simulation_data['resources'] *= 1.01
+        simulation_data['resources'] = np.minimum(simulation_data['resources'], 100)
         
-        active_clans = len(current_simulation_engine.clans)
-        total_pop = sum(c.size for c in current_simulation_engine.clans)
-
+        # Actualizar cada clan
+        for clan in simulation_data['clans']:
+            if clan['size'] <= 0:
+                continue
+                
+            # Movimiento simple (velocidad afectada por multiplicador)
+            speed = 0.8 * simulation_data['speed_multiplier']
+            clan['x'] += clan['direction_x'] * speed
+            clan['y'] += clan['direction_y'] * speed
+            
+            # Mantener dentro del grid (toroidal)
+            clan['x'] = clan['x'] % GRID_SIZE
+            clan['y'] = clan['y'] % GRID_SIZE
+            
+            # Cambiar dirección aleatoriamente a veces
+            if np.random.random() < 0.1:
+                clan['direction_x'] = np.random.uniform(-1, 1)
+                clan['direction_y'] = np.random.uniform(-1, 1)
+            
+            # Consumir recursos
+            grid_x = int(clan['x']) % GRID_SIZE
+            grid_y = int(clan['y']) % GRID_SIZE
+            
+            resource_consumed = min(simulation_data['resources'][grid_x, grid_y], clan['size'] * 0.2)
+            simulation_data['resources'][grid_x, grid_y] -= resource_consumed
+            
+            # Actualizar energía
+            if resource_consumed > clan['size'] * 0.1:
+                clan['energy'] = min(100, clan['energy'] + 2)
+                clan['state'] = 'foraging'
+            else:
+                clan['energy'] = max(0, clan['energy'] - 3)
+                clan['state'] = 'migrating' if clan['energy'] > 30 else 'resting'
+            
+            # Crecimiento/decrecimiento poblacional simple
+            if clan['energy'] > 70:
+                clan['size'] += 0.05 * clan['size']
+            elif clan['energy'] < 30:
+                clan['size'] -= 0.02 * clan['size']
+            
+            clan['size'] = max(0, int(clan['size']))
+        
+        # Remover clanes extintos
+        simulation_data['clans'] = [c for c in simulation_data['clans'] if c['size'] > 0]
+        
+        # Incrementar contadores (aplicar multiplicador de velocidad)
+        simulation_data['step'] += 1
+        simulation_data['time'] += 0.5 * simulation_data['speed_multiplier']
+        
+        active_clans = len(simulation_data['clans'])
+        total_pop = sum(c['size'] for c in simulation_data['clans'])
+        
         # Registrar población para análisis de convergencia
         simulation_data['last_populations'].append(total_pop)
         if len(simulation_data['last_populations']) > simulation_data['convergence_threshold']:
             simulation_data['last_populations'].pop(0)
-
-        # print(f"📊 Paso {simulation_data['step']}: {active_clans} clanes, {total_pop} población total")
-
+        
+        print(f"📊 Paso {simulation_data['step']}: {active_clans} clanes, {total_pop} población total")
+        
         # Verificar condiciones de finalización
         should_stop, reason = check_termination_conditions()
         if should_stop:
             simulation_data['running'] = False
             print(f"🛑 Simulación terminada: {reason}")
             return reason
-
+        
         return None
 
-
 def check_termination_conditions():
-    """Verifica si la simulación debe terminar."""
-    # Asegurarse de usar current_simulation_engine para el estado más reciente
-    if current_simulation_engine is None:
-        return True, "Motor de simulación no inicializado."
-
+    """Verifica si la simulación debe terminar"""
     if not simulation_data['auto_stop']:
+        # Solo verificar límite máximo de pasos si auto_stop está desactivado
         if simulation_data['step'] >= simulation_data['max_steps']:
             return True, f"Límite máximo de pasos alcanzado ({simulation_data['max_steps']})"
         return False, ""
-
-    total_pop = sum(c.size for c in current_simulation_engine.clans)
-    active_clans = len(current_simulation_engine.clans)
-
+    
+    total_pop = sum(c['size'] for c in simulation_data['clans'])
+    active_clans = len(simulation_data['clans'])
+    
     # 1. Extinción total
     if total_pop == 0:
         simulation_data['extinction_counter'] += 1
         if simulation_data['extinction_counter'] >= simulation_data['extinction_threshold']:
             return True, "Extinción total: No quedan individuos en ningún clan"
-        else:
-            # No parar inmediatamente si el contador no ha llegado al umbral
-            return False, "" 
-    else: # Si hay población, resetear el contador de extinción
+    else:
         simulation_data['extinction_counter'] = 0
-
+    
     # 2. Un solo clan sobreviviente (dominancia total)
     if active_clans == 1 and simulation_data['step'] > 50:
-        return True, f"Dominancia total: Solo queda el Clan {current_simulation_engine.clans[0].id}"
-
+        return True, f"Dominancia total: Solo queda el Clan {simulation_data['clans'][0]['id']}"
+    
     # 3. Límite máximo de pasos
     if simulation_data['step'] >= simulation_data['max_steps']:
         return True, f"Límite máximo de pasos alcanzado ({simulation_data['max_steps']})"
-
+    
     # 4. Convergencia poblacional (población estable por mucho tiempo)
     if len(simulation_data['last_populations']) >= simulation_data['convergence_threshold']:
-        recent_pops = simulation_data['last_populations'][-simulation_data['convergence_threshold']:] 
-        if len(recent_pops) == simulation_data['convergence_threshold']:
+        recent_pops = simulation_data['last_populations'][-20:]  # Últimos 20 pasos
+        if len(recent_pops) >= 20:
             variance = np.var(recent_pops)
             mean_pop = np.mean(recent_pops)
-
+            
             # Si la varianza es muy baja relative a la media, hay convergencia
-            if mean_pop > 0 and variance < (mean_pop * 0.02): # Menos del 2% de variación
+            if variance < (mean_pop * 0.02) and mean_pop > 0:  # Menos del 2% de variación
                 return True, f"Convergencia alcanzada: Población estable en {mean_pop:.0f} individuos"
-
+    
     # 5. Población muy baja (cerca de extinción)
-    if total_pop > 0 and total_pop <= 5 and simulation_data['step'] > 100:
+    if total_pop <= 5 and simulation_data['step'] > 100:
         return True, f"Población crítica: Solo quedan {total_pop} individuos"
-        
-    # 6. Sistema degenerado (todos los clanes muy pequeños, pero no extintos)
+    
+    # 6. Sistema degenerado (todos los clanes muy pequeños)
     if active_clans > 1 and simulation_data['step'] > 200:
-        max_clan_size = max(c.size for c in current_simulation_engine.clans)
+        max_clan_size = max(c['size'] for c in simulation_data['clans'])
         if max_clan_size <= 3:
             return True, "Sistema degenerado: Todos los clanes tienen poblaciones muy pequeñas"
-
+    
     return False, ""
 
-
 def get_simulation_summary():
-    """Genera un resumen de la simulación terminada."""
-    if current_simulation_engine is None:
-        return {"error": "Simulación no iniciada."}
-
-    total_pop = sum(c.size for c in current_simulation_engine.clans)
-    active_clans = len(current_simulation_engine.clans)
-
+    """Genera un resumen de la simulación terminada"""
+    total_pop = sum(c['size'] for c in simulation_data['clans'])
+    active_clans = len(simulation_data['clans'])
+    
     summary = {
         'total_steps': simulation_data['step'],
         'simulation_time': simulation_data['time'],
@@ -298,185 +214,156 @@ def get_simulation_summary():
         'surviving_clans': active_clans,
         'clan_details': []
     }
-
-    for clan in current_simulation_engine.clans:
+    
+    for clan in simulation_data['clans']:
         summary['clan_details'].append({
-            'id': clan.id,
-            'final_size': clan.size,
-            'final_energy': clan.energy,
-            'final_state': clan.state
+            'id': clan['id'],
+            'final_size': clan['size'],
+            'final_energy': clan['energy'],
+            'final_state': clan['state']
         })
+    
     return summary
 
-
 def get_simulation_state():
-    """Obtiene el estado actual para enviar al frontend."""
+    """Obtiene el estado actual para enviar al frontend"""
     with simulation_lock:
-        if current_simulation_engine is None:
-            # Estado por defecto si la simulación no ha sido inicializada
-            return {
-                'time': 0.0,
-                'step': 0,
-                'mode': current_simulation_mode_name, # Asegurarse de que el modo default esté aquí
-                'resource_grid': [],
-                'clans': [],
-                'running': False,
-                'max_steps': simulation_data['max_steps'],
-                'auto_stop': simulation_data['auto_stop'],
-                'system_metrics': { # Asegurar que estas métricas existan
-                    'total_population': 0,
-                    'active_clans': 0,
-                    'avg_energy': 0,
-                    'total_resources': 0
-                },
-                'last_populations': [], # Para el gráfico
-                'last_resources': [] # Para el gráfico
-            }
-        
-        engine_state = current_simulation_engine.get_simulation_state()
-        
-        # Sincronizar los historiales para el frontend
-        simulation_data['last_populations'] = current_simulation_engine.population_history
-        simulation_data['last_resources'] = current_simulation_engine.resource_history
-
+        # Convertir a formato compatible con el frontend
         state = {
-            'time': engine_state['time'],
-            'step': engine_state['step'],
-            'mode': current_simulation_mode_name, # Usar el modo actual del app.py
-            'resource_grid': engine_state['resource_grid'],
-            'clans': engine_state['clans'], # Ya viene formateado del engine
+            'time': simulation_data['time'],
+            'step': simulation_data['step'],
+            'mode': 'stochastic',
+            'resource_grid': simulation_data['resources'].tolist(),
+            'clans': [],
             'running': simulation_data['running'],
             'max_steps': simulation_data['max_steps'],
-            'auto_stop': simulation_data['auto_stop'],
-            'system_metrics': engine_state['system_metrics'], # Métricas directamente del engine
-            'last_populations': simulation_data['last_populations'], # Enviar historial completo
-            'last_resources': simulation_data['last_resources'] # Enviar historial completo
+            'auto_stop': simulation_data['auto_stop']
         }
+        
+        for clan in simulation_data['clans']:
+            clan_data = {
+                'id': clan['id'],
+                'size': clan['size'],
+                'position': [clan['x'], clan['y']],
+                'energy': clan['energy'],
+                'state': clan['state'],
+                'strategy': 'cooperative',
+                'visual_size': max(3, min(12, np.sqrt(clan['size']) * 1.5))
+            }
+            state['clans'].append(clan_data)
+        
         return state
 
 def simulation_loop():
-    """Loop principal de simulación."""
+    """Loop principal de simulación"""
     print("🔄 Iniciando loop de simulación...")
+    
     while True:
         try:
-            if simulation_data['running'] and current_simulation_engine is not None:
+            if simulation_data['running']:
                 termination_reason = simulation_step()
-
+                
                 # Enviar estado actualizado a todos los clientes
                 state = get_simulation_state()
-                print(f"DEBUG_EMIT: Estado enviado al frontend: {state['system_metrics']}")
+                print(f"📤 Enviando estado: paso {state['step']}, {len(state['clans'])} clanes")
                 socketio.emit('simulation_state', state)
-
+                
                 # Si la simulación terminó, notificar a los clientes
                 if termination_reason:
                     summary = get_simulation_summary()
                     socketio.emit('simulation_terminated', {
-                        'reason': termination_reason,
-                        'summary': summary
-                    })
+                    'reason': termination_reason,
+                    'summary': summary
+})
                     print(f"🏁 Simulación terminada: {termination_reason}")
                     print(f"📤 Notificación de terminación enviada")
-                    # Una vez terminada, se detiene el loop hasta un nuevo inicio/reset
-                    with simulation_lock:
-                        simulation_data['running'] = False # Asegurarse de que esté en False
-
+                
             # Calcular intervalo dinámico basado en velocidad
             base_interval = simulation_data['update_interval']
             speed_multiplier = simulation_data['speed_multiplier']
-            dynamic_interval = max(0.01, base_interval / speed_multiplier) # Limite mínimo de 10ms
+            
+            # Velocidad más alta = intervalo más corto
+            dynamic_interval = max(0.1, base_interval / speed_multiplier)
             
             socketio.sleep(dynamic_interval)
-
+            
         except Exception as e:
             print(f"❌ Error en loop de simulación: {e}")
             import traceback
             traceback.print_exc()
             with simulation_lock:
                 simulation_data['running'] = False
-                socketio.emit('simulation_error', {'error': str(e), 'trace': traceback.format_exc()})
-            socketio.sleep(2.0) # Esperar un poco antes de reintentar o detener completamente
+            socketio.sleep(2.0)
 
 # === RUTAS WEB ===
 
 @app.route('/')
 def index():
-    # Usar valores de la configuración por defecto para la página principal
-    return render_template('index.html',
-                           grid_size=default_config.GRID_SIZE,
-                           initial_clans=default_config.INITIAL_CLAN_COUNT,
-                           resource_density="Media", # Esto es un string, no un valor dinámico aún
-                           build_version="2.0")
+    return render_template('index.html', 
+                         grid_size=(GRID_SIZE, GRID_SIZE),
+                         initial_clans=NUM_CLANS,
+                         resource_density="Media",
+                         build_version="2.0")
 
-@app.route('/simulation', methods=['GET']) # SOLO GET, POST se manejará por WebSocket
+@app.route('/simulation', methods=['GET', 'POST'])
 def simulation():
-    global global_rng_seed
-    config_files = [f.replace('.json', '') for f in os.listdir(CONFIG_DIR) if f.endswith('.json')]
-    config_files.sort() # Ordenar alfabéticamente
-
-    # Para el GET, la configuración ya debería estar inicializada por __name__ == '__main__'
-    # o por una llamada previa de WebSocket 'configure_simulation'
-    if current_simulation_engine is None:
-        initialize_simulation(mode_name='stochastic', config_name='stochastic_default', seed=None)
-
-    # Asegurarse de que el frontend tenga la semilla actual para mostrar en el input
-    initial_seed_for_display = global_rng_seed if global_rng_seed is not None else ''
-
-    return render_template('simulation.html',
-                           current_mode=current_simulation_mode_name,
-                           config_files=config_files,
-                           initial_seed=initial_seed_for_display)
+    if request.method == 'POST':
+        # Reinicializar con nueva configuración si es necesario
+        initialize_simulation()
     
-    
+    config_files = ['stochastic_default', 'deterministic_default', 'small_test', 'large_scale']
+    return render_template('simulation.html', 
+                         current_mode='stochastic', 
+                         config_files=config_files)
+
 @app.route('/conservation_analysis')
 def conservation_analysis():
-    # Este resumen se generará al final de la simulación
-    summary = get_simulation_summary()
     report = f"""
     <h2>📊 Análisis de Conservación</h2>
     <div style="background: #e8f5e8; padding: 2rem; border-radius: 8px;">
-        <h3>🧬 Estado del Sistema al Final de la Simulación</h3>
-        <p><strong>Clanes activos:</strong> {summary.get('surviving_clans', 'N/A')}</p>
-        <p><strong>Población total:</strong> {summary.get('final_population', 'N/A')}</p>
-        <p><strong>Pasos ejecutados:</strong> {summary.get('total_steps', 'N/A')}</p>
-        <p>La simulación finalizó con la siguiente distribución:</p>
-        <ul>
-        {''.join([f"<li>Clan {c['id']}: Tamaño final {c['final_size']}, Energía {c['final_energy']:.1f}%</li>" for c in summary.get('clan_details', [])]) if summary.get('clan_details') else '<li>No hay detalles de clanes.</li>'}
-        </ul>
+        <h3>🧬 Estado del Sistema</h3>
+        <p><strong>Clanes activos:</strong> {len(simulation_data['clans'])}</p>
+        <p><strong>Población total:</strong> {sum(c['size'] for c in simulation_data['clans'])}</p>
+        <p><strong>Pasos ejecutados:</strong> {simulation_data['step']}</p>
+        <p>La simulación está funcionando correctamente.</p>
     </div>
     """
-    return render_template('analysis_report.html',
-                           report=report,
-                           analysis_type="Análisis de Conservación",
-                           current_time=datetime.now().strftime('%d/%m/%Y %H:%M:%S'))
+    
+    return render_template('analysis_report.html', 
+                         report=report, 
+                         analysis_type="Análisis de Conservación",
+                         current_time=datetime.now().strftime('%d/%m/%Y %H:%M:%S'))
 
 @app.route('/convergence_analysis')
 def convergence_analysis():
-    # Esto también dependerá del estado de una simulación finalizada
     report = """
     <h2>📈 Análisis de Convergencia</h2>
     <div style="background: #e8f4f8; padding: 2rem; border-radius: 8px;">
         <h3>📊 Métricas del Sistema</h3>
-        <p>Este análisis requiere datos de una simulación completada. Por favor, ejecuta una simulación y luego visita esta sección.</p>
-        <p>La convergencia poblacional se evalúa buscando estabilidad en la varianza de la población total durante un umbral de pasos.</p>
+        <p>Análisis de convergencia disponible después de ejecutar la simulación.</p>
+        <p>Execute varios pasos para obtener datos significativos.</p>
     </div>
     """
-    return render_template('analysis_report.html',
-                           report=report,
-                           analysis_type="Análisis de Convergencia",
-                           current_time=datetime.now().strftime('%d/%m/%Y %H:%M:%S'))
+    
+    return render_template('analysis_report.html', 
+                         report=report, 
+                         analysis_type="Análisis de Convergencia",
+                         current_time=datetime.now().strftime('%d/%m/%Y %H:%M:%S'))
 
 @app.route('/sensitivity_analysis')
 def sensitivity_analysis():
-    return render_template('analysis_report.html',
-                           report="<h2>🔧 Análisis de Sensibilidad</h2><p>Disponible próximamente. Este análisis requerirá múltiples ejecuciones de simulación con diferentes parámetros para evaluar su impacto.</p>",
-                           analysis_type="Análisis de Sensibilidad",
-                           current_time=datetime.now().strftime('%d/%m/%Y %H:%M:%S'))
+    return render_template('analysis_report.html', 
+                         report="<h2>🔧 Análisis de Sensibilidad</h2><p>Disponible próximamente.</p>", 
+                         analysis_type="Análisis de Sensibilidad",
+                         current_time=datetime.now().strftime('%d/%m/%Y %H:%M:%S'))
 
 # === EVENTOS WEBSOCKET ===
 
 @socketio.on('connect')
 def handle_connect():
     print('🔌 Cliente conectado al WebSocket')
+    
+    # Enviar estado inicial
     state = get_simulation_state()
     emit('simulation_state', state)
     print(f'📤 Estado inicial enviado: {len(state["clans"])} clanes, paso {state["step"]}')
@@ -488,176 +375,169 @@ def handle_disconnect():
 @socketio.on('start_simulation')
 def handle_start_simulation():
     print('▶️ Solicitud de INICIO recibida')
+    
     with simulation_lock:
-        if current_simulation_engine is None:
-            # Inicializar si no se ha hecho, por ejemplo si se entra directamente a /simulation
-            initialize_simulation() 
         simulation_data['running'] = True
+    
     print('✅ Simulación INICIADA')
+    
+    # Enviar confirmación inmediata
     emit('simulation_started', {'status': 'running'})
+    
+    # Enviar estado actual inmediatamente
     state = get_simulation_state()
-    emit('simulation_state', state) # Enviar estado actual inmediatamente
+    emit('simulation_state', state)
     print(f'📤 Estado inmediato enviado tras inicio')
 
 @socketio.on('pause_simulation')
 def handle_pause_simulation():
     print('⏸️ Solicitud de PAUSA recibida')
+    
     with simulation_lock:
         simulation_data['running'] = False
+    
     print('✅ Simulación PAUSADA')
-    emit('simulation_paused', {'status': 'paused'}) # Emitir evento de pausa
 
 @socketio.on('reset_simulation')
 def handle_reset_simulation():
     print('🔄 Solicitud de REINICIO recibida')
+    
     with simulation_lock:
         simulation_data['running'] = False
-    # Reinicializar con la última configuración que se aplicó (guardada en current_config y variables globales)
-    initialize_simulation(
-        mode_name=current_simulation_mode_name, 
-        config_name=current_config.get('config_name', 'stochastic_default'), # Usar la config_name guardada
-        seed=global_rng_seed # Mantener la semilla actual
-    )
+    
+    # Reinicializar
+    initialize_simulation()
+    
+    # Enviar nuevo estado
     state = get_simulation_state()
     emit('simulation_state', state)
+    
     print('✅ Simulación REINICIADA')
-
-
-# NUEVO EVENTO: Configurar la simulación desde el frontend vía WebSocket
-@socketio.on('configure_simulation')
-def handle_configure_simulation(data):
-    print(f"⚙️ Solicitud de CONFIGURACIÓN recibida: {data}")
-    try:
-        mode = data.get('mode', 'stochastic')
-        config_file = data.get('config_file', 'stochastic_default')
-        seed = int(data['seed']) if data.get('seed') else None
-
-        with simulation_lock:
-            initialize_simulation(mode_name=mode, config_name=config_file, seed=seed)
-        
-        state = get_simulation_state()
-        emit('simulation_state', state) # Enviar el estado actualizado de la nueva simulación
-        emit('configuration_applied', {
-            'status': 'success',
-            'message': 'Configuración aplicada y simulación reiniciada.',
-            'new_config': {
-                'mode': mode,
-                'config_file': config_file,
-                'seed': seed,
-                'max_steps': state['max_steps'], # Para actualizar el frontend
-                'auto_stop': state['auto_stop'] # Para actualizar el frontend
-            }
-        })
-        print("✅ Configuración aplicada y simulación reiniciada vía WebSocket.")
-    except Exception as e:
-        print(f"❌ Error al configurar simulación: {e}")
-        import traceback
-        traceback.print_exc()
-        emit('configuration_error', {'error': str(e), 'trace': traceback.format_exc()})
-
 
 @socketio.on('step_simulation')
 def handle_step_simulation():
     print('👆 Solicitud de PASO MANUAL recibida')
-    if current_simulation_engine is None:
-        emit('simulation_error', {'error': 'Simulación no inicializada para paso manual.'})
-        return
+    
+    # Ejecutar un solo paso
     termination_reason = simulation_step()
+    
+    # Enviar estado actualizado
     state = get_simulation_state()
     emit('simulation_state', state)
     print(f'📤 Estado de paso manual enviado: paso {state["step"]}')
+    
+    # Si terminó, notificar
     if termination_reason:
         summary = get_simulation_summary()
         emit('simulation_terminated', {
             'reason': termination_reason,
             'summary': summary
         })
+    
     print('✅ Paso manual ejecutado')
 
 @socketio.on('request_state')
 def handle_request_state():
-    # print('📤 Solicitud de estado recibida')
+    print('📤 Solicitud de estado recibida')
+    
     state = get_simulation_state()
     emit('simulation_state', state)
-    # print(f'📤 Estado enviado: {len(state["clans"])} clanes, paso {state["step"]}')
+    
+    print(f'📤 Estado enviado: {len(state["clans"])} clanes, paso {state["step"]}')
 
 @socketio.on('update_speed')
 def handle_update_speed(data):
+    """Maneja cambios de velocidad desde el frontend"""
     try:
         new_speed = float(data.get('speed', 1.0))
+        # Limitar velocidad entre 0.1x y 5.0x
         new_speed = max(0.1, min(5.0, new_speed))
+        
         with simulation_lock:
             simulation_data['speed_multiplier'] = new_speed
+            
         print(f'⚡ Velocidad actualizada a {new_speed:.1f}x')
+        
+        # Enviar confirmación
         emit('speed_updated', {'speed': new_speed})
+        
     except Exception as e:
         print(f'❌ Error actualizando velocidad: {e}')
         emit('speed_update_error', {'error': str(e)})
 
 @socketio.on('get_speed')
 def handle_get_speed():
+    """Envía la velocidad actual al cliente"""
     with simulation_lock:
         current_speed = simulation_data['speed_multiplier']
+    
     emit('current_speed', {'speed': current_speed})
     print(f'📤 Velocidad actual enviada: {current_speed:.1f}x')
 
 @socketio.on('toggle_auto_stop')
 def handle_toggle_auto_stop(data):
+    """Alterna el auto-stop de la simulación"""
     try:
         new_auto_stop = bool(data.get('auto_stop', True))
+        
         with simulation_lock:
             simulation_data['auto_stop'] = new_auto_stop
+            
         print(f'🔄 Auto-stop {"activado" if new_auto_stop else "desactivado"}')
+        
+        # Enviar confirmación
         emit('auto_stop_updated', {'auto_stop': new_auto_stop})
+        
     except Exception as e:
         print(f'❌ Error toggling auto-stop: {e}')
 
 @socketio.on('set_max_steps')
 def handle_set_max_steps(data):
+    """Establece el máximo número de pasos"""
     try:
         new_max_steps = int(data.get('max_steps', 500))
-        new_max_steps = max(50, min(2000, new_max_steps))
+        new_max_steps = max(50, min(2000, new_max_steps))  # Límites razonables
+        
         with simulation_lock:
             simulation_data['max_steps'] = new_max_steps
-            # Actualizar también el max_steps en el motor si ya está inicializado
-            if current_simulation_engine:
-                current_simulation_engine.max_steps = new_max_steps
+            
         print(f'📊 Máximo de pasos establecido en {new_max_steps}')
+        
+        # Enviar confirmación
         emit('max_steps_updated', {'max_steps': new_max_steps})
+        
     except Exception as e:
         print(f'❌ Error setting max steps: {e}')
 
 @socketio.on('get_simulation_config')
 def handle_get_simulation_config():
+    """Envía la configuración actual de la simulación"""
     with simulation_lock:
         config = {
             'max_steps': simulation_data['max_steps'],
             'auto_stop': simulation_data['auto_stop'],
             'current_step': simulation_data['step'],
             'extinction_threshold': simulation_data['extinction_threshold'],
-            'convergence_threshold': simulation_data['convergence_threshold'],
-            'grid_size': current_config.get('GRID_SIZE', [0,0]), # Enviar el grid_size real
-            'current_mode': current_simulation_mode_name,
-            'current_config_file': request.form.get('config_file', 'stochastic_default'), # Para el frontend
-            'current_seed': global_rng_seed
+            'convergence_threshold': simulation_data['convergence_threshold']
         }
+    
     emit('simulation_config', config)
-    print(f'📤 Configuración enviada: max_steps={config["max_steps"]}, auto_stop={config["auto_stop"]}, mode={config["current_mode"]}')
-
+    print(f'📤 Configuración enviada: max_steps={config["max_steps"]}, auto_stop={config["auto_stop"]}')
 
 if __name__ == '__main__':
     print("🚀 Iniciando aplicación de simulación territorial...")
     print("=" * 50)
-
-    # Inicializar simulación por defecto al inicio del servidor
+    
+    # Inicializar simulación
     initialize_simulation()
-
+    
     # Iniciar loop de simulación en hilo separado
     simulation_thread = Thread(target=simulation_loop, daemon=True)
     simulation_thread.start()
     print("🔄 Loop de simulación iniciado en hilo separado")
-
+    
     print("🌐 Servidor listo en http://localhost:5000")
     print("=" * 50)
-
+    
+    # Ejecutar servidor
     socketio.run(app, debug=False, host='127.0.0.1', port=5000)

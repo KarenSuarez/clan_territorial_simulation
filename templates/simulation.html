@@ -5,7 +5,6 @@
 {% block head %}
 <meta name="description" content="Visualización interactiva de la simulación de competencia territorial">
 <style>
-    /* ... (Estilos que ya tenías, no hay cambios aquí. Asegúrate de que el estilo de .config-form, etc., esté incluido) ... */
     .simulation-intro {
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         color: white;
@@ -143,122 +142,11 @@
     .breadcrumb a:hover {
         text-decoration: underline;
     }
-    /* NUEVO: Estilos para el formulario de configuración */
-    .config-form {
-        background: white;
-        padding: 1.5rem 2rem;
-        border-radius: var(--border-radius);
-        box-shadow: var(--shadow);
-        margin-bottom: 2rem; /* Espacio debajo del formulario */
-        border-left: 5px solid var(--primary-color);
-        animation: fadeIn 0.8s ease-out;
-    }
-
-    .config-form h3 {
-        color: var(--primary-color);
-        margin-top: 0;
-        margin-bottom: 1.5rem;
-        font-size: 1.6rem;
-        display: flex;
-        align-items: center;
-        gap: 0.8rem;
-    }
-
-    .form-row {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-        gap: 1.5rem;
-        margin-bottom: 1rem;
-    }
-
-    .form-group {
-        display: flex;
-        flex-direction: column;
-    }
-
-    .form-group label {
-        font-weight: 600;
-        margin-bottom: 0.5rem;
-        color: var(--dark-gray);
-        display: flex;
-        align-items: center;
-        gap: 0.4rem;
-    }
-
-    .form-group select,
-    .form-group input[type="number"],
-    .form-group input[type="text"] { /* Añadir text si alguna vez se usa */
-        padding: 0.8rem 1rem;
-        border: 1px solid var(--light-gray);
-        border-radius: var(--border-radius);
-        font-size: 1rem;
-        width: 100%; /* Asegurar que ocupe todo el ancho disponible en su columna */
-        box-sizing: border-box; /* Incluir padding y border en el ancho */
-    }
-
-    .form-group button {
-        margin-top: auto; /* Empujar el botón hacia abajo para alinearlo */
-        padding: 0.8rem 1.5rem;
-        font-size: 1rem;
-        font-weight: 600;
-        cursor: pointer;
-        border: none;
-        border-radius: var(--border-radius);
-        transition: all 0.3s ease;
-    }
-
-    .form-group button.play-btn {
-        background: linear-gradient(45deg, var(--success-color), #28b463);
-        color: white;
-        box-shadow: var(--shadow-small);
-    }
-
-    .form-group button.play-btn:hover {
-        opacity: 0.9;
-        transform: translateY(-2px);
-    }
-
-    .info-tooltip {
-        position: relative;
-        display: inline-block;
-        cursor: help;
-        font-size: 0.8em;
-        color: var(--secondary-color);
-        font-weight: normal;
-    }
-
-    .info-tooltip::before {
-        content: attr(data-tooltip);
-        position: absolute;
-        bottom: 100%;
-        left: 50%;
-        transform: translateX(-50%);
-        background-color: var(--dark-gray);
-        color: white;
-        padding: 0.5rem 0.8rem;
-        border-radius: 5px;
-        white-space: nowrap;
-        opacity: 0;
-        visibility: hidden;
-        transition: opacity 0.3s ease, visibility 0.3s ease;
-        z-index: 10;
-        pointer-events: none;
-        font-size: 0.9rem;
-    }
-
-    .info-tooltip:hover::before {
-        opacity: 1;
-        visibility: visible;
-    }
-
-    @keyframes fadeIn {
-        from { opacity: 0; transform: translateY(20px); }
-        to { opacity: 1; transform: translateY(0); }
-    }
 </style>
 {% endblock %}
 
 {% block content %}
+<!-- Introduction Section -->
 <div class="simulation-intro">
     <h3>🎮 Simulación Interactiva de Competencia Territorial</h3>
     <p>
@@ -268,7 +156,8 @@
     </p>
 </div>
 
-<form id="configForm" class="config-form">
+<!-- Configuration Form -->
+<form method="POST" action="{{ url_for('simulation') }}" class="config-form">
     <h3>⚙️ Configuración de la Simulación</h3>
 
     <div class="form-row">
@@ -296,7 +185,7 @@
             </label>
             <select name="config_file" id="config_file" required>
                 {% for config in config_files %}
-                <option value="{{ config }}" {% if config=='stochastic_default' %}selected{% endif %}>
+                <option value="{{ config }}" {% if request.form.get('config_file')==config or (not request.form and config=='stochastic_default') %}selected{% endif %}>
                     📄 {{ config.replace('_', ' ').title() }}
                 </option>
                 {% endfor %}
@@ -309,17 +198,18 @@
                 <span class="info-tooltip"
                     data-tooltip="Número para generar resultados reproducibles. Déjalo vacío para usar semilla aleatoria.">?</span>
             </label>
-            <input type="number" name="seed" id="seed" placeholder="Ej: 12345" min="1" max="999999" value="{{ initial_seed }}">
+            <input type="number" name="seed" id="seed" placeholder="Ej: 12345" min="1" max="999999" value="{{ initial_seed if initial_seed is not none else '' }}">
         </div>
 
         <div class="form-group">
-        <button type="submit" class="play-btn">
-            🚀 Aplicar Configuración
-        </button>
-    </div>
+            <button type="submit" class="play-btn">
+                🚀 Aplicar Configuración
+            </button>
+        </div>
     </div>
 </form>
 
+<!-- Main Simulation Container -->
 <div class="simulation-container">
     <div class="canvas-container">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
@@ -417,12 +307,12 @@
         <div class="controls-section">
             <h4>⚡ Acciones Rápidas</h4>
 
-            <button onclick="window.location.href='{{ url_for('conservation_analysis') }}'"
+            <button onclick="window.location.href='/conservation_analysis'"
                 style="width: 100%; margin-bottom: 0.5rem;">
                 🔬 Análisis de Conservación
             </button>
 
-            <button onclick="window.location.href='{{ url_for('convergence_analysis') }}'"
+            <button onclick="window.location.href='/convergence_analysis'"
                 style="width: 100%; margin-bottom: 0.5rem;">
                 📈 Análisis de Convergencia
             </button>
@@ -438,7 +328,9 @@
     </div>
 </div>
 
+<!-- Agregar esta sección DESPUÉS de la sección de "Acciones Rápidas" en simulation.html -->
 
+<!-- Simulation Termination Controls -->
 <div class="controls-section">
     <h4>⏹️ Control de Finalización</h4>
 
@@ -472,15 +364,85 @@
     </div>
 </div>
 
+<!-- Progress indicator placeholder -->
 <div class="simulation-progress controls-section" style="display: none;">
-    </div>
+    <!-- Se llena dinámicamente con JavaScript -->
+</div>
 
-{# Comentado temporalmente el gráfico de Evolución Temporal #}
-{# <div class="chart-container">
+<script>
+    // Función para actualizar máximo de pasos
+    function updateMaxSteps() {
+        const input = document.getElementById('maxStepsInput');
+        if (input && window.SimulationController) {
+            const newMaxSteps = parseInt(input.value);
+            if (newMaxSteps >= 50 && newMaxSteps <= 2000) {
+                window.SimulationController.setMaxSteps(newMaxSteps);
+                showNotification(`Máximo de pasos establecido en ${newMaxSteps}`, 'success');
+            } else {
+                showNotification('El máximo de pasos debe estar entre 50 y 2000', 'error');
+            }
+        }
+    }
+
+    // Mostrar indicador de progreso cuando la simulación esté corriendo
+    document.addEventListener('DOMContentLoaded', function () {
+        // Mostrar/ocultar indicador de progreso según el estado
+        const observer = new MutationObserver(function (mutations) {
+            const progressDiv = document.querySelector('.simulation-progress');
+            const isRunning = window.SimulationController && window.SimulationController.isRunning();
+
+            if (progressDiv) {
+                progressDiv.style.display = isRunning ? 'block' : 'none';
+            }
+        });
+
+        // Observar cambios en el estado de la simulación
+        const targetNode = document.querySelector('.controls-panel');
+        if (targetNode) {
+            observer.observe(targetNode, { childList: true, subtree: true });
+        }
+    });
+</script>
+
+<style>
+    /* Estilos adicionales para los controles de finalización */
+    .simulation-progress {
+        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+        border-left: 4px solid #3498db;
+    }
+
+    .simulation-progress .progress-bar {
+        background: linear-gradient(90deg, #27ae60, #3498db);
+        height: 8px;
+        border-radius: 4px;
+        transition: width 0.3s ease;
+    }
+
+    #terminationInfo {
+        background: #f8f9fa;
+        padding: 0.8rem;
+        border-radius: 4px;
+        border-left: 3px solid #3498db;
+        margin-top: 0.5rem;
+    }
+
+    .controls-section input[type="number"] {
+        font-family: monospace;
+        text-align: center;
+    }
+
+    .controls-section input[type="checkbox"] {
+        accent-color: #27ae60;
+    }
+</style>
+
+<!-- Real-time Chart -->
+<div class="chart-container">
     <h3>📈 Evolución Temporal</h3>
     <canvas id="populationChart" width="800" height="300"></canvas>
-</div> #}
+</div>
 
+<!-- Information Panel -->
 <div class="analysis-section" style="margin-top: 2rem;">
     <h3>📚 Información del Sistema</h3>
 
@@ -516,7 +478,7 @@
     </div>
 </div>
 
-
+<!-- Performance Info -->
 <div class="analysis-section">
     <h3>⚡ Información de Rendimiento</h3>
     <div id="performanceInfo" style="font-family: monospace; font-size: 0.9rem;">
@@ -529,78 +491,19 @@
 
 {% block scripts %}
 <script src="{{ url_for('static', filename='js/simulation.js') }}"></script>
-{# Comentado temporalmente el script de charts.js #}
-{# <script src="{{ url_for('static', filename='js/charts.js') }}"></script> #}
+
 <script>
-    // Global utility function from base.html, ensure it's available
-    function showNotification(message, type = 'info', duration = 3000) {
-        console.log(`📢 ${type.toUpperCase()}: ${message}`);
-        const notification = document.createElement('div');
-        notification.textContent = message;
-        notification.style.cssText = `
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            padding: 12px 20px;
-            border-radius: 6px;
-            color: white;
-            font-weight: 500;
-            z-index: 10000;
-            opacity: 0;
-            transform: translateX(100%);
-            transition: all 0.3s ease;
-            max-width: 300px;
-        `;
-        const colors = {
-            success: '#27ae60', error: '#e74c3c', warning: '#f39c12', info: '#3498db'
-        };
-        notification.style.backgroundColor = colors[type] || colors.info;
-        document.body.appendChild(notification);
-        setTimeout(() => {
-            notification.style.opacity = '1';
-            notification.style.transform = 'translateX(0)';
-        }, 100);
-        setTimeout(() => {
-            notification.style.opacity = '0';
-            notification.style.transform = 'translateX(100%)';
-            setTimeout(() => {
-                if (notification.parentNode) {
-                    notification.parentNode.removeChild(notification);
-                }
-            }, 300);
-        }, duration);
-    }
-
-    // Existing updateMaxSteps function, now accessible globally (if needed from HTML button)
-    function updateMaxSteps() {
-        const input = document.getElementById('maxStepsInput');
-        if (input && window.SimulationController) {
-            const newMaxSteps = parseInt(input.value);
-            if (newMaxSteps >= 50 && newMaxSteps <= 2000) {
-                window.SimulationController.setMaxSteps(newMaxSteps);
-                showNotification(`Máximo de pasos establecido en ${newMaxSteps}`, 'success');
-            } else {
-                showNotification('El máximo de pasos debe estar entre 50 y 2000', 'error');
-            }
-        }
-    }
-
-    // Export current data function - moved to global scope
-    window.exportCurrentData = function() {
+    // Additional functionality specific to this page
+    function exportCurrentData() {
         if (window.SimulationController && window.SimulationController.getState()) {
             const data = {
                 state: window.SimulationController.getState(),
-                history: {
-                    // Ahora que el gráfico está comentado, esta historia no se usa para visualización inmediata,
-                    // pero es bueno que siga siendo parte de la exportación si hay datos disponibles.
-                    population: window.SimulationController.getState().last_populations || [],
-                    resources: window.SimulationController.getState().last_resources || []
-                },
+                history: window.SimulationController.getHistory(),
                 timestamp: new Date().toISOString(),
                 config: {
-                    mode: document.getElementById('simulation_mode')?.value,
-                    config_file: document.getElementById('config_file')?.value,
-                    seed: document.getElementById('seed')?.value
+                    mode: document.getElementById('simulation_mode').value,
+                    config_file: document.getElementById('config_file').value,
+                    seed: document.getElementById('seed').value
                 }
             };
 
@@ -613,14 +516,12 @@
             a.click();
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
-            showNotification('Datos exportados con éxito!', 'success');
         } else {
-            showNotification('No hay datos de simulación disponibles para exportar.', 'error');
+            alert('No hay datos de simulación disponibles para exportar.');
         }
     }
 
-    // Take screenshot function - moved to global scope
-    window.takeScreenshot = function() {
+    function takeScreenshot() {
         const canvas = document.getElementById('gridCanvas');
         if (canvas) {
             const link = document.createElement('a');
@@ -630,7 +531,7 @@
         }
     }
 
-    // Performance monitoring (existing, ensure it's still good)
+    // Performance monitoring
     let fpsCounter = 0;
     let lastFpsTime = Date.now();
 
@@ -644,35 +545,43 @@
             lastFpsTime = now;
         }
 
+        // Memory usage (if available)
         if (performance.memory) {
             const memUsed = (performance.memory.usedJSHeapSize / 1024 / 1024).toFixed(1);
             document.getElementById('memoryUsage').textContent = memUsed;
         }
+
         requestAnimationFrame(updatePerformanceInfo);
     }
 
+    // Start performance monitoring
     document.addEventListener('DOMContentLoaded', function () {
         updatePerformanceInfo();
 
+        // Update simulation status display
         function updateSimulationStatus() {
             const statusDisplay = document.getElementById('simulationStatus');
             const isRunning = window.SimulationController ? window.SimulationController.isRunning() : false;
+
             if (statusDisplay) {
                 statusDisplay.textContent = isRunning ? 'Ejecutando' : 'Detenido';
             }
         }
+
         setInterval(updateSimulationStatus, 1000);
+    });
 
-        // Auto-save configuration
-        document.getElementById('simulation_mode').addEventListener('change', function () {
-            localStorage.setItem('sim_mode', this.value);
-        });
+    // Auto-save configuration
+    document.getElementById('simulation_mode').addEventListener('change', function () {
+        localStorage.setItem('sim_mode', this.value);
+    });
 
-        document.getElementById('config_file').addEventListener('change', function () {
-            localStorage.setItem('sim_config', this.value);
-        });
+    document.getElementById('config_file').addEventListener('change', function () {
+        localStorage.setItem('sim_config', this.value);
+    });
 
-        // Restore saved configuration
+    // Restore saved configuration
+    document.addEventListener('DOMContentLoaded', function () {
         const savedMode = localStorage.getItem('sim_mode');
         const savedConfig = localStorage.getItem('sim_config');
 
@@ -682,6 +591,7 @@
                 modeSelect.value = savedMode;
             }
         }
+
         if (savedConfig) {
             const configSelect = document.getElementById('config_file');
             if (configSelect && configSelect.querySelector(`option[value="${savedConfig}"]`)) {

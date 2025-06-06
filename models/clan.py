@@ -33,8 +33,7 @@ class Clan:
             'cooperation_tendency': 0.6,
             'aggressiveness': 0.3,
             'territorial_expansion_rate': 0.05, # Reducido para no crecer demasiado rápido
-            'exploration_tendency': 0.5,
-            'starvation_mortality_rate': 0.1 # Nuevo parámetro para la mortalidad por inanición
+            'exploration_tendency': 0.5
         }
 
         if parameters:
@@ -54,15 +53,17 @@ class Clan:
         El modo de simulación será el responsable de llamar a los métodos específicos de Clan
         (como _move, _forage_behavior, etc.) de manera estocástica o determinista.
         """
+        # La lógica específica de movimiento, forrajeo, etc., ahora se activa desde el SimulationMode
+        # Este método ahora solo se encarga de la percepción y decisión de estado,
+        # y deja la ejecución del comportamiento al modo.
+
         try:
             self._perceive_environment(environment, other_clans)
             self._decide_state(environment, other_clans)
+            # El modo es el que llama a los métodos de comportamiento después de esta decisión
+            # No hay necesidad de llamar a _forage_behavior, _defend_behavior, etc. aquí directamente
+            # _consume_resources y _update_territory se llaman directamente desde el engine después del apply_clan_behavior
             
-            # La ejecución del comportamiento específico (_forage_behavior, etc.)
-            # ahora se deja al SimulationMode que llama a este método.
-            # Sin embargo, el consumo de recursos y la degradación de energía son inherentes a Clan
-            self._apply_energy_consumption_and_population_dynamics(environment, dt) # Unificar aquí
-
         except Exception as e:
             print(f"Error en comportamiento del clan {self.id}: {e}")
 
@@ -84,25 +85,20 @@ class Clan:
         threats = self._count_nearby_threats(other_clans)
         local_resources = self._evaluate_local_resources(environment)
 
-        # Lógica de decisión mejorada
-        if self.energy < 20 and self.size > 0: # Prioridad máxima: descansar si hay poca energía
-            self.state = 'resting'
-        elif threats > 0 and self.energy > 30: # Combatir/defender si hay amenaza y energía para ello
-            if self.size > 8:
-                self.state = 'fighting'
-            else:
-                self.state = 'defending'
-        elif local_resources < self.size * self.parameters['resource_required_per_individual'] * 10 and self.energy > 40:
-            # Migrar si los recursos locales son escasos y aún hay energía suficiente para buscar
+        if threats > 0 and self.energy > 30:
+            self.state = 'fighting' if self.size > 8 else 'defending'
+        elif local_resources < self.size * self.parameters['resource_required_per_individual'] * 10 and self.energy > 20:
             self.state = 'migrating'
-        else: # Por defecto, forrajear
+        elif self.energy < 25:
+            self.state = 'resting'
+        else:
             self.state = 'foraging'
 
     def _count_nearby_threats(self, other_clans):
         """Cuenta amenazas cercanas."""
         threats = 0
         for other_clan in other_clans:
-            if other_clan.id != self.id and other_clan.size > 0:
+            if other_clan.id != self.id:
                 distance = np.linalg.norm(self.position - other_clan.position)
                 # Considerar amenaza si está cerca y es más grande o igual
                 if distance < self.parameters['perception_radius'] / 2 and other_clan.size >= self.size * 0.8:
@@ -113,10 +109,7 @@ class Clan:
         """Evalúa recursos en área local (promedio de recursos percibidos)."""
         if not self.resource_memory:
             return 0
-        
-        # Filtrar solo recursos válidos y calcular el promedio
-        valid_resources = [res for res in self.resource_memory.values() if res is not None and res > 0]
-        return sum(valid_resources) / len(valid_resources) if valid_resources else 0
+        return sum(self.resource_memory.values()) / len(self.resource_memory)
 
 
     def _forage_behavior(self, environment, dt):
@@ -125,8 +118,7 @@ class Clan:
         if np.linalg.norm(best_direction) > 0:
             movement = best_direction * self.parameters['movement_speed'] * dt
             self._move(movement, environment)
-        # Consumir recursos se maneja en _apply_energy_consumption_and_population_dynamics
-
+        # Consumir recursos se maneja en _consume_resources
 
     def _defend_behavior(self, environment, dt):
         """Comportamiento defensivo."""
@@ -147,7 +139,7 @@ class Clan:
         if np.linalg.norm(migration_direction) > 0:
             movement = migration_direction * self.parameters['movement_speed'] * 1.5 * dt
             self._move(movement, environment)
-
+        self.energy = max(0, self.energy - 10 * dt) # Mayor costo energético por migración
 
     def _fight_behavior(self, other_clans, dt):
         """Comportamiento de combate."""
@@ -175,8 +167,7 @@ class Clan:
                 self._engage_combat(target, dt)
         else:
             # Si no hay enemigo cercano, vuelve a forrajear o defender
-            # Esta decisión se hace en _decide_state, así que no es necesaria aquí.
-            pass
+            self.state = 'foraging' # O 'defending' si aún está en territorio disputado
 
 
     def _rest_behavior(self, dt):
@@ -188,55 +179,25 @@ class Clan:
             noise = self.rng.random_normal(0, 0.05, size=2) * dt
             self._move(noise, None) # Moverse ligeramente sin referencia a recursos
 
+
     def _find_resource_direction(self, environment):
         """Encuentra la mejor dirección hacia recursos percibidos."""
         best_direction = np.array([0.0, 0.0])
         max_resource_level = -1.0
         
         # Iterar a través de la memoria de recursos
-        # Priorizar celdas con más recursos, con un sesgo hacia celdas no tan cerca
-        # para evitar quedarse atascado en un mínimo local.
-        
-        # Percibir una pequeña área alrededor para suavizar el gradiente
-        perceived_cells_data = []
-        radius = int(self.parameters['perception_radius'])
-        for dx in range(-radius, radius + 1):
-            for dy in range(-radius, radius + 1):
-                if np.sqrt(dx*dx + dy*dy) <= radius:
-                    pos = self.position + np.array([dx, dy])
-                    toroidal_pos = environment.get_toroidal_position(pos).astype(int)
-                    resource_level = environment.get_resource(toroidal_pos)
-                    distance = np.linalg.norm(self.position - toroidal_pos) # Distancia real a la celda
-                    if resource_level > 0: # Solo considerar celdas con recursos
-                         perceived_cells_data.append((resource_level, toroidal_pos, distance))
-        
-        # Ordenar por nivel de recurso, y luego por distancia (más cerca es mejor)
-        perceived_cells_data.sort(key=lambda x: (x[0], -x[2]), reverse=True) # Max resource, then min distance
+        for pos_tuple, resource_level in self.resource_memory.items():
+            if resource_level > max_resource_level:
+                cell_pos = np.array(pos_tuple)
+                # Dirección hacia la celda con más recursos
+                direction_vector = cell_pos - self.position
+                # Ajustar para toroidalidad
+                if environment:
+                    direction_vector = environment.get_toroidal_position(direction_vector + environment.grid_size / 2) - environment.grid_size / 2
 
-        if perceived_cells_data:
-            # Tomar la mejor celda
-            best_resource_level, best_cell_pos, _ = perceived_cells_data[0]
-            
-            direction_vector = np.array(best_cell_pos) - self.position
-            # Ajustar para toroidalidad si el movimiento cruza el borde
-            # Esto es un poco más complejo si la dirección es larga
-            # Una forma simple para toroidalidad: si la distancia es > GRID_SIZE/2, ir por el otro lado
-            grid_size = environment.grid_size[0] # Asumimos grid cuadrado
-            if abs(direction_vector[0]) > grid_size / 2:
-                direction_vector[0] -= np.sign(direction_vector[0]) * grid_size
-            if abs(direction_vector[1]) > grid_size / 2:
-                direction_vector[1] -= np.sign(direction_vector[1]) * grid_size
-            
-            norm = np.linalg.norm(direction_vector)
-            if norm > 0:
-                best_direction = direction_vector / norm
-            
-            # Pequeño factor de exploración si la mejor celda es muy conocida y no muy rica
-            if self.rng and self.rng.random_float() < self.parameters['exploration_tendency'] and best_resource_level < 50:
-                 best_direction = self.rng.random_normal(0, 1, size=2)
-                 norm_exp = np.linalg.norm(best_direction)
-                 if norm_exp > 0:
-                     best_direction /= norm_exp
+                if np.linalg.norm(direction_vector) > 0:
+                    max_resource_level = resource_level
+                    best_direction = direction_vector / np.linalg.norm(direction_vector)
         
         return best_direction
 
@@ -248,22 +209,19 @@ class Clan:
 
         # Para migración, buscar áreas con recursos altos y posiblemente poco exploradas
         # Usaremos una serie de puntos de prueba aleatorios
-        num_test_points = 10 # Más intentos para mejor búsqueda
-        if self.rng:
-            test_angles = self.rng.random_uniform(0, 2*np.pi, num_test_points)
-        else:
-            test_angles = np.random.uniform(0, 2*np.pi, num_test_points) # Fallback
+        for _ in range(self.parameters['perception_radius'] * 2): # Más intentos para mejor búsqueda
+            if self.rng:
+                angle = self.rng.random_uniform(0, 2*np.pi)
+            else:
+                angle = np.random.uniform(0, 2*np.pi) # Fallback
 
-        for angle in test_angles:
             direction_candidate = np.array([np.cos(angle), np.sin(angle)])
-            # Probar un punto más lejano para migración
-            test_pos = self.position + direction_candidate * self.parameters['perception_radius'] * 2 
+            test_pos = self.position + direction_candidate * self.parameters['perception_radius'] * 1.5 # Más lejos
             test_pos = environment.get_toroidal_position(test_pos).astype(int)
 
             # Evaluar recursos en el área objetivo del test_pos
             area_resources = 0
             cells_in_area = 0
-            # Evaluar un cuadrado de 5x5 alrededor del punto de prueba
             for dx in range(-2, 3):
                 for dy in range(-2, 3):
                     check_pos = test_pos + np.array([dx, dy])
@@ -314,59 +272,41 @@ class Clan:
         enemy.morale = max(0, enemy.morale - 5 * dt)
 
 
-    def _apply_energy_consumption_and_population_dynamics(self, environment, dt):
-        """
-        Consumir recursos del entorno, actualizar energía y aplicar dinámicas poblacionales
-        incluyendo mortalidad por inanición.
-        """
+    def _consume_resources(self, environment, dt):
+        """Consume recursos del entorno y actualiza energía y tamaño."""
         pos = self.position.astype(int)
-        
-        # Calcular recursos necesarios
         needed = self.size * self.parameters['resource_required_per_individual'] * dt
 
-        # Aplicar eficiencia de grupo/cooperación en el consumo
-        group_efficiency_factor = 1.0 - (self.parameters['cooperation_tendency'] * 0.3)
-        effective_needed = needed * group_efficiency_factor # Menos necesario si hay cooperación
-        
-        # Consumir del entorno
-        consumed_resources = environment.consume(pos, effective_needed)
+        # Eficiencia de grupo (cooperación)
+        group_efficiency_bonus = self.parameters['cooperation_tendency'] * 0.3
+        effective_consumption_rate = self.parameters['resource_required_per_individual'] * (1.0 - group_efficiency_bonus)
+        effective_needed = self.size * effective_consumption_rate * dt
 
-        # Ganancia de energía
-        if effective_needed > 0:
-            energy_conversion_efficiency = (consumed_resources / effective_needed) # Cuánto % de lo necesario se consumió
-            energy_gain = energy_conversion_efficiency * 20 * dt # Factor de ganancia de energía (20 es arbitrario)
+        consumed = environment.consume(pos, effective_needed)
+
+        # Convertir recursos en energía
+        if needed > 0:
+            # Cuanta energía debería ganar vs. cuanto realmente consumió
+            energy_conversion_efficiency = (consumed / effective_needed) if effective_needed > 0 else 0
+            energy_gain = energy_conversion_efficiency * 15 * dt # 15 es un factor de conversión
+
             self.energy = min(100, self.energy + energy_gain)
-        
-        # Degradación de energía por tiempo y actividad (si no está descansando)
-        if self.state != 'resting':
-            self.energy = max(0, self.energy - 8 * dt)
-        else: # Si está descansando, la degradación es menor (o nula)
-            self.energy = min(100, self.energy + 5 * dt) # Pequeña ganancia incluso si no forrajea
 
-        # Aplicar mortalidad por inanición si la energía es muy baja
-        if self.energy <= 10: # Umbral bajo de energía
-            starvation_mortality_rate = self.parameters['starvation_mortality_rate'] * (1 - self.energy / 10) # Mayor si energía es 0
-            population_loss_starvation = starvation_mortality_rate * self.size * dt
-            self.size = max(0, self.size - population_loss_starvation)
-
-        # Dinámica poblacional (nacimientos y muertes naturales)
+        # Dinámica poblacional simple basada en energía y recursos
+        # Esto se puede refinar usando equations.py en Solicitud 4
         current_birth_rate = self.parameters['birth_rate']
         current_death_rate = self.parameters['natural_death_rate']
 
-        # Modificadores de natalidad y mortalidad basados en energía
-        # Más energía = más nacimientos, menos muertes
-        # Menos energía = menos nacimientos, más muertes
-        energy_factor_for_growth = self.energy / 100.0 # 0 a 1
+        energy_factor_pop = (self.energy / 100.0) # 0 a 1
         
-        # Tasa de natalidad: aumenta con la energía (ej. si energía > 60)
-        effective_birth_rate = current_birth_rate * max(0, (energy_factor_for_growth - 0.6) * 2.5) # Factor que activa nacimientos
-        
-        # Tasa de mortalidad: aumenta si la energía es baja (ej. si energía < 40)
-        effective_death_rate = current_death_rate * max(1, (0.4 - energy_factor_for_growth) * 2.5) # Factor que aumenta mortalidad
+        # Efecto de la energía en la natalidad y mortalidad
+        birth_modifier = max(0, (energy_factor_pop - 0.5) * 2) # Nace más si energía > 50
+        death_modifier = max(0, (0.5 - energy_factor_pop) * 2) # Muere más si energía < 50
 
-        population_change = (effective_birth_rate - effective_death_rate) * self.size * dt
-        self.size += population_change
-        self.size = max(0, int(round(self.size))) # Redondear y asegurar que no sea negativo
+        # Cambio de tamaño
+        size_change = (current_birth_rate * birth_modifier - current_death_rate * death_modifier) * self.size * dt
+        self.size += size_change
+        self.size = max(0, int(round(self.size)))
 
 
     def _move(self, movement_vector, environment):
@@ -385,29 +325,17 @@ class Clan:
     def _update_territory(self):
         """Actualiza territorio controlado."""
         # Un clan reclama una celda si está cerca y tiene alta energía/moral
-        # La expansión se vuelve más difícil si el territorio ya es grande
-        territory_pressure_factor = 1.0 # 1.0 - (len(self.territory_cells) / (self.size * 5 + 1e-6)) # Penalizar territorios grandes
-        
-        expansion_chance = self.parameters['territorial_expansion_rate'] * (self.energy / 100) * (self.morale / 100) * territory_pressure_factor
+        expansion_chance = self.parameters['territorial_expansion_rate'] * (self.energy / 100) * (self.morale / 100)
         
         if self.rng:
             if self.rng.random_float() < expansion_chance:
                 # Reclamar una celda adyacente aleatoria si hay RNG
-                # Priorizar celdas que no estén ya en el territorio
-                possible_new_cells = []
-                for dx in range(-1, 2):
-                    for dy in range(-1, 2):
-                        if dx == 0 and dy == 0:
-                            continue
-                        cell = self.position.astype(int) + np.array([dx, dy])
-                        cell_tuple = tuple(cell)
-                        if cell_tuple not in self.territory_cells:
-                            possible_new_cells.append(cell_tuple)
-                
-                if possible_new_cells:
-                    chosen_cell = self.rng.random_choice(possible_new_cells)
-                    self.territory_cells.add(chosen_cell)
-        else: # Fallback sin RNG (debería ser eliminado en Solicitud 2)
+                dx = self.rng.random_randint(-1, 1)
+                dy = self.rng.random_randint(-1, 1)
+                if dx != 0 or dy != 0:
+                    cell = self.position.astype(int) + np.array([dx, dy])
+                    self.territory_cells.add(tuple(cell))
+        else: # Fallback sin RNG
             if np.random.random() < expansion_chance:
                 for dx in range(-1, 2):
                     for dy in range(-1, 2):
@@ -418,20 +346,15 @@ class Clan:
 
 
         # Limitar tamaño del territorio a algo razonable basado en el tamaño del clan
-        max_territory_size = int(self.size * 5) + 1 # Cada individuo puede controlar hasta 5 celdas
+        max_territory_size = self.size * 5 # Cada individuo puede controlar 5 celdas
         if len(self.territory_cells) > max_territory_size:
-            # Remover celdas más lejanas o antiguas si el territorio es demasiado grande
-            # Para simplificar, remover al azar hasta el tamaño deseado.
-            if self.rng:
-                cells_to_remove_count = len(self.territory_cells) - max_territory_size
-                cells_list = list(self.territory_cells)
-                cells_to_remove = self.rng.random_choice(cells_list, size=cells_to_remove_count, replace=False)
-                for cell in cells_to_remove:
-                    self.territory_cells.discard(cell)
-            else: # Fallback sin RNG
-                # Implementación simple: convertir a lista y truncar
-                cells_list = list(self.territory_cells)
-                self.territory_cells = set(cells_list[:max_territory_size])
+            # Eliminar celdas más antiguas si la población es baja
+            # O las más lejanas si no están contribuyendo
+            
+            # Simplificado: si el territorio es demasiado grande, lo reducimos
+            # Esto puede ser más complejo con una verdadera gestión territorial
+            cells_to_keep = list(self.territory_cells)[:max_territory_size]
+            self.territory_cells = set(cells_to_keep)
 
 
     def get_state_info(self):
