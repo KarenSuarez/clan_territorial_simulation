@@ -36,7 +36,6 @@ class SimulationEngine:
             # print(f"\n=== Paso {self.step_count} (t={self.time:.2f}) ===")
 
             # 1. Regenerar recursos del entorno
-            # La regeneración ahora usa el RNG del modo si el Environment lo tiene (ver Solicitud 2)
             self.environment.regenerate(dt)
 
             # 2. Actualizar comportamiento de cada clan usando el modo
@@ -45,9 +44,18 @@ class SimulationEngine:
                     try:
                         # El modo de simulación dicta cómo el clan se comporta
                         self.simulation_mode.apply_clan_behavior(clan, self.environment, dt)
-                        # Consumir recursos básicos y degradar energía se mantiene en el clan
-                        clan._consume_resources(self.environment, dt) 
-                        clan.energy = max(0, clan.energy - 8 * dt) # Degradación de energía por tiempo
+                        
+                        # Consumir recursos y manejar mortalidad ANTES de degradar energía
+                        clan._consume_resources(self.environment, dt)
+                        
+                        # Degradación de energía por tiempo - AJUSTADA PARA SER MÁS GRADUAL
+                        if clan.energy > 0:
+                            energy_decay = min(clan.energy, 3 * dt)  # Máximo 3 por paso (en lugar de 8)
+                            clan.energy = max(0, clan.energy - energy_decay)
+                        
+                        # Verificar que el clan siga vivo después de la mortalidad
+                        if clan.size <= 0:
+                            print(f"💀 Clan {clan.id} se ha extinguido (tamaño: {clan.size})")
 
                     except Exception as e:
                         print(f"Error actualizando clan {clan.id}: {e}")
@@ -55,15 +63,19 @@ class SimulationEngine:
             # 3. Procesar interacciones entre clanes cercanos
             self._process_interactions(dt)
 
-            # 4. Aplicar dinámicas poblacionales
+            # 4. Aplicar dinámicas poblacionales adicionales si es necesario
             self._apply_population_dynamics(dt)
 
             # 5. Remover clanes extintos
+            initial_clan_count = len(self.clans)
             self.clans = [clan for clan in self.clans if clan.size > 0]
+            if len(self.clans) < initial_clan_count:
+                extinct_count = initial_clan_count - len(self.clans)
+                print(f"🪦 {extinct_count} clan(es) removido(s) por extinción")
             
             # 6. Actualizar territorio para todos los clanes restantes
             for clan in self.clans:
-                clan._update_territory() # Asegurarse de que el clan actualice su propio territorio
+                clan._update_territory()
 
             # 7. Registrar métricas
             self._record_metrics()
@@ -71,9 +83,11 @@ class SimulationEngine:
             # 8. Avanzar tiempo
             self.time += dt
 
-            # print(f"Clanes activos: {len(self.clans)}")
-            # for clan in self.clans:
-            #     print(f" {clan}: energía={clan.energy:.1f}")
+            # Debug info ocasional
+            if self.step_count % 50 == 0:  # Cada 50 pasos
+                total_pop = sum(clan.size for clan in self.clans)
+                avg_energy = np.mean([clan.energy for clan in self.clans]) if self.clans else 0
+                print(f"📊 Paso {self.step_count}: {len(self.clans)} clanes, {total_pop:.1f} población, {avg_energy:.1f}% energía promedio")
 
         except Exception as e:
             print(f"Error en paso de simulación: {e}")
@@ -96,6 +110,7 @@ class SimulationEngine:
 
     def _handle_interaction(self, clan1, clan2, distance, dt, rng):
         """Maneja interacción específica entre dos clanes."""
+        interaction_radius = 5.0
         interaction_strength = max(0.1, 1.0 - (distance / interaction_radius)) # Normalizar fuerza
 
         # Determinar tipo de interacción basado en estrategias y tamaños

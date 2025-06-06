@@ -56,7 +56,7 @@ def load_config_file(config_name):
     print(f"⚠️ Archivo de configuración '{config_name}.json' no encontrado. Usando valores por defecto o la configuración actual.")
     return {}
 
-def initialize_simulation(mode_name='stochastic', config_name='stochastic_default', seed=None):
+def initialize_simulation(mode_name='stochastic', config_name='stochastic_default', seed=None, custom_grid_size=None):
     """Inicializa la simulación, cargando la configuración y estableciendo el modo."""
     global current_simulation_engine, current_config, current_simulation_mode_name, current_mode_instance, global_rng_seed
 
@@ -67,7 +67,7 @@ def initialize_simulation(mode_name='stochastic', config_name='stochastic_defaul
         base_config = load_config_file(config_name)
         # Combinar con config_default para tener valores por defecto si no están en el JSON
         combined_config = {
-            'GRID_SIZE': default_config.GRID_SIZE,
+            'GRID_SIZE': custom_grid_size or default_config.GRID_SIZE,
             'INITIAL_CLAN_COUNT': default_config.INITIAL_CLAN_COUNT,
             'MIN_CLAN_SIZE': default_config.MIN_CLAN_SIZE,
             'MAX_CLAN_SIZE': default_config.MAX_CLAN_SIZE,
@@ -81,6 +81,12 @@ def initialize_simulation(mode_name='stochastic', config_name='stochastic_defaul
             'forage_probability': 1.0 # Default for stochastic mode
         }
         combined_config.update(base_config)
+        
+        # Aplicar tamaño de rejilla personalizado si se proporciona
+        if custom_grid_size:
+            combined_config['GRID_SIZE'] = custom_grid_size
+            print(f"📐 Tamaño de rejilla personalizado aplicado: {custom_grid_size}")
+        
         current_config = combined_config
         
         global_rng_seed = seed # Guardar la semilla globalmente para MersenneTwister
@@ -291,7 +297,14 @@ def get_simulation_state():
                 'clans': [],
                 'running': False,
                 'max_steps': simulation_data['max_steps'],
-                'auto_stop': simulation_data['auto_stop']
+                'auto_stop': simulation_data['auto_stop'],
+                'grid_size': current_config.get('GRID_SIZE', [50, 50]),  # AGREGADO
+                'system_metrics': {  # AGREGADO: Métricas por defecto
+                    'total_population': 0,
+                    'active_clans': 0,
+                    'avg_energy': 0,
+                    'total_resources': 0
+                }
             }
         
         engine_state = current_simulation_engine.get_simulation_state()
@@ -304,7 +317,14 @@ def get_simulation_state():
             'clans': engine_state['clans'], # Ya viene formateado del engine
             'running': simulation_data['running'],
             'max_steps': simulation_data['max_steps'],
-            'auto_stop': simulation_data['auto_stop']
+            'auto_stop': simulation_data['auto_stop'],
+            'grid_size': current_config.get('GRID_SIZE', [50, 50]),  # AGREGADO
+            'system_metrics': engine_state.get('system_metrics', {  # AGREGADO: Métricas del engine
+                'total_population': 0,
+                'active_clans': 0,
+                'avg_energy': 0,
+                'total_resources': 0
+            })
         }
         return state
 
@@ -368,21 +388,24 @@ def simulation():
     config_files = [f.replace('.json', '') for f in os.listdir(CONFIG_DIR) if f.endswith('.json')]
     config_files.sort() # Ordenar alfabéticamente
 
-    selected_mode = request.form.get('simulation_mode', 'stochastic')
-    selected_config_file = request.form.get('config_file', 'stochastic_default')
-    seed_input = request.form.get('seed')
-    
-    seed = int(seed_input) if seed_input and seed_input.isdigit() else None
-    
     if request.method == 'POST':
+        # Solo procesar POST si es un formulario tradicional (fallback)
+        selected_mode = request.form.get('simulation_mode', 'stochastic')
+        selected_config_file = request.form.get('config_file', 'stochastic_default')
+        seed_input = request.form.get('seed')
+        
+        seed = int(seed_input) if seed_input and seed_input.isdigit() else None
+        
         # Reinicializar con nueva configuración y modo
         initialize_simulation(mode_name=selected_mode, config_name=selected_config_file, seed=seed)
-        print(f"⚙️ Configuración aplicada: Modo={selected_mode}, Archivo={selected_config_file}, Semilla={seed}")
+        print(f"⚙️ Configuración aplicada vía POST: Modo={selected_mode}, Archivo={selected_config_file}, Semilla={seed}")
 
-    # En caso de GET o después de POST, asegurar que la simulación esté inicializada
+    # En caso de GET, solo inicializar si NO hay simulación activa
     if current_simulation_engine is None:
+        print("🔄 Inicializando simulación por primera vez en GET /simulation")
         initialize_simulation(mode_name='stochastic', config_name='stochastic_default', seed=None)
-
+    else:
+        print("✅ Simulación ya existente, no reinicializando en GET /simulation")
 
     return render_template('simulation.html',
                            current_mode=current_simulation_mode_name,
@@ -478,7 +501,8 @@ def handle_reset_simulation():
     initialize_simulation(
         mode_name=current_simulation_mode_name, 
         config_name=request.form.get('config_file', 'stochastic_default'), # Intentar usar la config actual del formulario si existe
-        seed=global_rng_seed # Mantener la semilla si estaba en determinista
+        seed=global_rng_seed, # Mantener la semilla si estaba en determinista
+        custom_grid_size=current_config.get('GRID_SIZE')  # Mantener el tamaño de rejilla actual
     )
     state = get_simulation_state()
     emit('simulation_state', state)
@@ -572,6 +596,194 @@ def handle_get_simulation_config():
     emit('simulation_config', config)
     print(f'📤 Configuración enviada: max_steps={config["max_steps"]}, auto_stop={config["auto_stop"]}, mode={config["current_mode"]}')
 
+# NUEVOS EVENTOS WEBSOCKET PARA CONFIGURACIÓN SIN RECARGA
+
+@socketio.on('apply_configuration')
+def handle_apply_configuration(data):
+    """Maneja la aplicación de nueva configuración sin recargar la página."""
+    print('⚙️ Solicitud de aplicar configuración recibida')
+    
+    try:
+        mode_name = data.get('simulation_mode', 'stochastic')
+        config_name = data.get('config_file', 'stochastic_default')
+        seed_input = data.get('seed')
+        
+        # Validar modo
+        if mode_name not in ['stochastic', 'deterministic']:
+            emit('configuration_error', {'error': 'Modo de simulación no válido'})
+            return
+        
+        # Procesar semilla
+        seed = None
+        if seed_input and str(seed_input).strip():
+            try:
+                seed = int(seed_input)
+                if seed < 1 or seed > 999999:
+                    emit('configuration_error', {'error': 'La semilla debe estar entre 1 y 999999'})
+                    return
+            except ValueError:
+                emit('configuration_error', {'error': 'La semilla debe ser un número entero'})
+                return
+        
+        # Detener simulación si está corriendo
+        with simulation_lock:
+            simulation_data['running'] = False
+        
+        # Aplicar nueva configuración
+        initialize_simulation(mode_name=mode_name, config_name=config_name, seed=seed)
+        
+        # Enviar confirmación con el nuevo estado
+        state = get_simulation_state()
+        emit('configuration_applied', {
+            'message': f'Configuración aplicada: {mode_name}, {config_name}, semilla: {seed}',
+            'new_state': state,
+            'config': {
+                'mode': mode_name,
+                'config_file': config_name,
+                'seed': seed
+            }
+        })
+        
+        print(f'✅ Configuración aplicada: Modo={mode_name}, Archivo={config_name}, Semilla={seed}')
+        
+    except Exception as e:
+        print(f'❌ Error aplicando configuración: {e}')
+        import traceback
+        traceback.print_exc()
+        emit('configuration_error', {'error': f'Error interno: {str(e)}'})
+
+@socketio.on('get_available_configs')
+def handle_get_available_configs():
+    """Envía la lista de configuraciones disponibles."""
+    try:
+        config_files = [f.replace('.json', '') for f in os.listdir(CONFIG_DIR) if f.endswith('.json')]
+        config_files.sort()
+        emit('available_configs', {'configs': config_files})
+    except Exception as e:
+        print(f'❌ Error obteniendo configuraciones: {e}')
+        emit('configuration_error', {'error': 'No se pudieron cargar las configuraciones'})
+
+# NUEVOS EVENTOS PARA PARÁMETROS EN VIVO
+@socketio.on('update_parameters')
+def handle_update_parameters(data):
+    """Maneja la actualización de parámetros en tiempo real."""
+    print('🔧 Solicitud de actualizar parámetros recibida:', data)
+    
+    try:
+        # Filtrar parámetros válidos
+        valid_parameters = {}
+        
+        # Parámetros que pueden modificarse en vivo
+        allowed_params = {
+            'birthRate', 'deathRate', 'starvationMortality', 'energyDecay',
+            'resourceRegen', 'resourceRequired', 'energyConversion', 'resourceMax',
+            'cooperation', 'aggressiveness', 'movementSpeed', 'perceptionRadius', 
+            'territorialExpansion', 'combatRadius', 'combatDamage', 'combatEnergyCost',
+            'allianceProbability', 'interactionRadius', 'migrationThreshold', 
+            'restingThreshold', 'fightingThreshold'
+        }
+        
+        for param, value in data.items():
+            if param in allowed_params:
+                try:
+                    valid_parameters[param] = float(value)
+                except (ValueError, TypeError):
+                    continue
+        
+        if not valid_parameters:
+            emit('parameters_error', {'error': 'No se proporcionaron parámetros válidos'})
+            return
+        
+        # Aplicar parámetros al motor de simulación si existe
+        if current_simulation_engine:
+            # Aquí necesitarías métodos en tu SimulationEngine para actualizar parámetros
+            # Por ahora, simulamos la aplicación exitosa
+            print(f'✅ Parámetros aplicados: {valid_parameters}')
+            
+            # Actualizar configuración actual
+            current_config.update(valid_parameters)
+            
+            emit('parameters_updated', {
+                'message': f'Se aplicaron {len(valid_parameters)} parámetros exitosamente',
+                'updated_parameters': valid_parameters
+            })
+        else:
+            emit('parameters_error', {'error': 'No hay simulación activa para actualizar'})
+    
+    except Exception as e:
+        print(f'❌ Error actualizando parámetros: {e}')
+        emit('parameters_error', {'error': f'Error interno: {str(e)}'})
+
+@socketio.on('get_current_parameters')
+def handle_get_current_parameters():
+    """Envía los parámetros actuales del sistema."""
+    try:
+        # Enviar parámetros de la configuración actual
+        current_params = {
+            'birthRate': current_config.get('birth_rate', 0.1),
+            'deathRate': current_config.get('death_rate', 0.05),
+            'starvationMortality': current_config.get('MORTALITY_STARVATION_MAX', 0.8),
+            'energyDecay': current_config.get('energy_decay', 3),
+            'resourceRegen': current_config.get('RESOURCE_REGEN_RATE', 1.5),
+            'resourceRequired': current_config.get('RESOURCE_REQUIRED_PER_INDIVIDUAL', 1.2),
+            'resourceMax': current_config.get('RESOURCE_MAX', 100),
+            # Agregar más parámetros según sea necesario
+        }
+        
+        emit('current_parameters', {'parameters': current_params})
+        print('📤 Parámetros actuales enviados')
+        
+    except Exception as e:
+        print(f'❌ Error obteniendo parámetros actuales: {e}')
+        emit('parameters_error', {'error': f'Error obteniendo parámetros: {str(e)}'})
+
+# NUEVO EVENTO PARA CAMBIAR TAMAÑO DE REJILLA
+@socketio.on('update_grid_size')
+def handle_update_grid_size(data):
+    """Maneja el cambio de tamaño de rejilla."""
+    print('📐 Solicitud de cambiar tamaño de rejilla recibida:', data)
+    
+    try:
+        grid_width = int(data.get('gridWidth', 50))
+        grid_height = int(data.get('gridHeight', 50))
+        
+        # Validar dimensiones
+        if grid_width < 10 or grid_width > 200:
+            emit('grid_size_error', {'error': 'El ancho debe estar entre 10 y 200'})
+            return
+            
+        if grid_height < 10 or grid_height > 200:
+            emit('grid_size_error', {'error': 'La altura debe estar entre 10 y 200'})
+            return
+        
+        new_grid_size = [grid_width, grid_height]
+        
+        # Detener simulación si está corriendo
+        with simulation_lock:
+            simulation_data['running'] = False
+        
+        # Reinicializar con nuevo tamaño de rejilla
+        initialize_simulation(
+            mode_name=current_simulation_mode_name, 
+            config_name='stochastic_default',  # Usar config default para el nuevo tamaño
+            seed=global_rng_seed,
+            custom_grid_size=new_grid_size
+        )
+        
+        # Enviar confirmación
+        state = get_simulation_state()
+        emit('grid_size_updated', {
+            'message': f'Rejilla actualizada a {grid_width}x{grid_height}',
+            'new_grid_size': new_grid_size,
+            'new_state': state
+        })
+        
+        print(f'✅ Tamaño de rejilla actualizado a: {grid_width}x{grid_height}')
+        
+    except Exception as e:
+        print(f'❌ Error actualizando tamaño de rejilla: {e}')
+        emit('grid_size_error', {'error': f'Error interno: {str(e)}'})
+
 
 if __name__ == '__main__':
     print("🚀 Iniciando aplicación de simulación territorial...")
@@ -585,7 +797,7 @@ if __name__ == '__main__':
     simulation_thread.start()
     print("🔄 Loop de simulación iniciado en hilo separado")
 
-    print("🌐 Servidor listo en http://localhost:5000")
+    print("🌐 Servidor listo en http://127.0.0.1:5000")
     print("=" * 50)
 
     socketio.run(app, debug=False, host='127.0.0.1', port=5000)

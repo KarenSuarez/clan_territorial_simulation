@@ -285,28 +285,47 @@ class Clan:
         consumed = environment.consume(pos, effective_needed)
 
         # Convertir recursos en energía
-        if needed > 0:
-            # Cuanta energía debería ganar vs. cuanto realmente consumió
-            energy_conversion_efficiency = (consumed / effective_needed) if effective_needed > 0 else 0
-            energy_gain = energy_conversion_efficiency * 15 * dt # 15 es un factor de conversión
-
+        if effective_needed > 0:
+            energy_conversion_efficiency = (consumed / effective_needed)
+            energy_gain = energy_conversion_efficiency * 15 * dt
             self.energy = min(100, self.energy + energy_gain)
+        else:
+            # Si no necesita recursos, pequeña ganancia de energía
+            self.energy = min(100, self.energy + 2 * dt)
 
-        # Dinámica poblacional simple basada en energía y recursos
-        # Esto se puede refinar usando equations.py en Solicitud 4
-        current_birth_rate = self.parameters['birth_rate']
-        current_death_rate = self.parameters['natural_death_rate']
+        # NUEVA LÓGICA DE MORTALIDAD POR INANICIÓN MÁS AGRESIVA
+        if self.energy <= 0:
+            # Mortalidad crítica cuando no hay energía
+            starvation_mortality = 0.8 * dt  # 80% de probabilidad de muerte por paso cuando energía = 0
+            deaths_by_starvation = starvation_mortality * self.size
+            self.size = max(0, self.size - deaths_by_starvation)
+        elif self.energy < 25:
+            # Mortalidad alta cuando energía es baja
+            energy_factor = self.energy / 25.0  # 0 a 1
+            starvation_mortality = (1.0 - energy_factor) * 0.4 * dt  # Hasta 40% de mortalidad
+            deaths_by_starvation = starvation_mortality * self.size
+            self.size = max(0, self.size - deaths_by_starvation)
 
-        energy_factor_pop = (self.energy / 100.0) # 0 a 1
-        
-        # Efecto de la energía en la natalidad y mortalidad
-        birth_modifier = max(0, (energy_factor_pop - 0.5) * 2) # Nace más si energía > 50
-        death_modifier = max(0, (0.5 - energy_factor_pop) * 2) # Muere más si energía < 50
+        # Dinámica poblacional normal (nacimientos y muertes naturales)
+        if self.energy > 30:  # Solo reproducirse si hay suficiente energía
+            current_birth_rate = self.parameters['birth_rate']
+            energy_factor_birth = min(1.0, (self.energy - 30) / 70.0)  # Factor entre 0 y 1
+            birth_modifier = energy_factor_birth
+            births = current_birth_rate * birth_modifier * self.size * dt
+            self.size += births
 
-        # Cambio de tamaño
-        size_change = (current_birth_rate * birth_modifier - current_death_rate * death_modifier) * self.size * dt
-        self.size += size_change
+        # Mortalidad natural (independiente de la inanición)
+        natural_deaths = self.parameters['natural_death_rate'] * self.size * dt
+        self.size = max(0, self.size - natural_deaths)
+
+        # Asegurar que el tamaño sea un entero y al menos 0
         self.size = max(0, int(round(self.size)))
+
+        # Si el clan está casi extinto pero tiene algo de energía, dar una pequeña oportunidad
+        if self.size == 0 and self.energy > 50:
+            # Pequeña probabilidad de "renacimiento" si hay mucha energía pero nadie
+            if self.rng and self.rng.random_float() < 0.1:  # 10% de probabilidad
+                self.size = 1
 
 
     def _move(self, movement_vector, environment):

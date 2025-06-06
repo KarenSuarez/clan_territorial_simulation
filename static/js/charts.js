@@ -1,12 +1,20 @@
-// charts.js - Funcionalidad de gráficos para análisis
+// charts.js - Funcionalidad de gráficos para análisis (CORREGIDO)
 document.addEventListener('DOMContentLoaded', function() {
     console.log('Inicializando sistema de gráficos...');
     
     // Variables globales para gráficos
-    let populationChartInstance = null; // ¡Ahora global dentro de este ámbito!
-    let resourceChartInstance = null; // Mantener por si se usa
+    let populationChartInstance = null;
+    let resourceChartInstance = null;
     let spatialChartInstance = null;
-    let distributionChartInstance = null; // Nuevo: para el gráfico de distribución
+    let distributionChartInstance = null;
+
+    // Datos para los gráficos
+    let chartData = {
+        labels: [],
+        populationData: [],
+        resourceData: [],
+        maxDataPoints: 100  // LÍMITE MÁXIMO DE PUNTOS
+    };
 
     // Configuración de colores
     const chartColors = {
@@ -20,6 +28,9 @@ document.addEventListener('DOMContentLoaded', function() {
     // Inicializar gráficos si Chart.js está disponible
     if (typeof Chart !== 'undefined') {
         initializeCharts();
+        console.log('✅ Chart.js disponible, inicializando gráficos');
+    } else {
+        console.warn('⚠️ Chart.js no está disponible');
     }
     
     function initializeCharts() {
@@ -34,17 +45,21 @@ document.addEventListener('DOMContentLoaded', function() {
         const populationCanvas = document.getElementById('populationChart');
         if (populationCanvas) {
             setupPopulationChart(populationCanvas);
+        } else {
+            console.warn('⚠️ Canvas populationChart no encontrado');
         }
         
-        // Configurar otros gráficos (los que están en otras páginas de análisis)
+        // Configurar otros gráficos
         setupAnalysisCharts();
     }
     
     function setupPopulationChart(canvas) {
-        // Si ya existe una instancia, la destruimos antes de crear una nueva
-        // Esto es crucial para evitar el "trabado" y que se alargue el gráfico
+        console.log('🔧 Configurando gráfico de población...');
+        
+        // Destruir instancia anterior si existe
         if (populationChartInstance) {
             populationChartInstance.destroy();
+            populationChartInstance = null;
         }
 
         const ctx = canvas.getContext('2d');
@@ -52,23 +67,27 @@ document.addEventListener('DOMContentLoaded', function() {
         populationChartInstance = new Chart(ctx, {
             type: 'line',
             data: {
-                labels: [],
+                labels: chartData.labels,
                 datasets: [{
                     label: 'Población Total',
-                    data: [],
+                    data: chartData.populationData,
                     borderColor: chartColors.primary,
                     backgroundColor: chartColors.primary + '20',
                     borderWidth: 2,
                     fill: true,
-                    tension: 0.4
+                    tension: 0.4,
+                    pointRadius: 2,
+                    pointHoverRadius: 4
                 }, {
                     label: 'Recursos Totales',
-                    data: [],
+                    data: chartData.resourceData,
                     borderColor: chartColors.secondary,
                     backgroundColor: chartColors.secondary + '20',
                     borderWidth: 2,
                     fill: true,
                     tension: 0.4,
+                    pointRadius: 2,
+                    pointHoverRadius: 4,
                     yAxisID: 'y1'
                 }]
             },
@@ -76,43 +95,20 @@ document.addEventListener('DOMContentLoaded', function() {
                 responsive: true,
                 maintainAspectRatio: false,
                 animation: {
-                    duration: 0 // Desactivar animaciones para mejor rendimiento en tiempo real
+                    duration: 0 // Sin animaciones para mejor rendimiento
                 },
-                scales: {
-                    x: {
-                        title: {
-                            display: true,
-                            text: 'Pasos de Simulación'
-                        }
-                    },
-                    y: {
-                        type: 'linear',
-                        display: true,
-                        position: 'left',
-                        title: {
-                            display: true,
-                            text: 'Población'
-                        },
-                        beginAtZero: true
-                    },
-                    y1: {
-                        type: 'linear',
-                        display: true,
-                        position: 'right',
-                        title: {
-                            display: true,
-                            text: 'Recursos'
-                        },
-                        grid: {
-                            drawOnChartArea: false,
-                        },
-                        beginAtZero: true
-                    }
+                interaction: {
+                    intersect: false,
+                    mode: 'index'
                 },
                 plugins: {
                     title: {
                         display: true,
-                        text: 'Evolución Temporal de la Simulación'
+                        text: 'Evolución Temporal de la Simulación',
+                        font: {
+                            size: 16,
+                            weight: 'bold'
+                        }
                     },
                     legend: {
                         display: true,
@@ -126,23 +122,56 @@ document.addEventListener('DOMContentLoaded', function() {
                                 return 'Paso: ' + context[0].label;
                             },
                             label: function(context) {
-                                return context.dataset.label + ': ' + context.parsed.y.toFixed(2);
+                                let value = parseFloat(context.parsed.y).toFixed(1);
+                                return context.dataset.label + ': ' + value;
                             }
                         }
                     }
                 },
-                interaction: {
-                    mode: 'nearest',
-                    axis: 'x',
-                    intersect: false
+                scales: {
+                    x: {
+                        title: {
+                            display: true,
+                            text: 'Pasos de Simulación'
+                        },
+                        ticks: {
+                            maxTicksLimit: 10 // Limitar número de etiquetas
+                        }
+                    },
+                    y: {
+                        type: 'linear',
+                        display: true,
+                        position: 'left',
+                        title: {
+                            display: true,
+                            text: 'Población'
+                        },
+                        beginAtZero: true,
+                        grace: '5%'
+                    },
+                    y1: {
+                        type: 'linear',
+                        display: true,
+                        position: 'right',
+                        title: {
+                            display: true,
+                            text: 'Recursos'
+                        },
+                        grid: {
+                            drawOnChartArea: false,
+                        },
+                        beginAtZero: true,
+                        grace: '5%'
+                    }
                 }
             }
         });
-        console.log('Gráfico de población configurado');
+        
+        console.log('✅ Gráfico de población configurado exitosamente');
     }
     
     function setupAnalysisCharts() {
-        // Configurar gráficos de análisis si existen
+        // Configurar otros gráficos si existen
         setupConvergenceChart();
         setupSpatialChart();
         setupDistributionChart();
@@ -153,10 +182,31 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!canvas) return;
         
         const ctx = canvas.getContext('2d');
-        // También destruir si ya existe para evitar duplicados
         if (canvas.chart) canvas.chart.destroy(); 
         
-        canvas.chart = new Chart(ctx, { /* ... */ });
+        // Configuración básica para gráfico de convergencia
+        canvas.chart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [{
+                    label: 'Varianza Poblacional',
+                    data: [],
+                    borderColor: chartColors.warning,
+                    backgroundColor: chartColors.warning + '20'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    title: {
+                        display: true,
+                        text: 'Análisis de Convergencia'
+                    }
+                }
+            }
+        });
     }
     
     function setupSpatialChart() {
@@ -166,7 +216,30 @@ document.addEventListener('DOMContentLoaded', function() {
         const ctx = canvas.getContext('2d');
         if (canvas.chart) canvas.chart.destroy(); 
 
-        spatialChartInstance = new Chart(ctx, { /* ... */ });
+        spatialChartInstance = new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: ['Área Controlada', 'Área Libre', 'Área Disputada'],
+                datasets: [{
+                    data: [0, 100, 0],
+                    backgroundColor: [
+                        chartColors.primary,
+                        chartColors.secondary,
+                        chartColors.accent
+                    ]
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    title: {
+                        display: true,
+                        text: 'Distribución Territorial'
+                    }
+                }
+            }
+        });
     }
     
     function setupDistributionChart() {
@@ -176,72 +249,112 @@ document.addEventListener('DOMContentLoaded', function() {
         const ctx = canvas.getContext('2d');
         if (canvas.chart) canvas.chart.destroy(); 
 
-        distributionChartInstance = new Chart(ctx, { /* ... */ });
+        distributionChartInstance = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: [],
+                datasets: [{
+                    label: 'Distribución de Clanes por Tamaño',
+                    data: [],
+                    backgroundColor: chartColors.info + '80'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    title: {
+                        display: true,
+                        text: 'Distribución de Tamaños de Clanes'
+                    }
+                }
+            }
+        });
     }
     
-    // Funciones para actualizar gráficos
-    function updatePopulationChart(populationData, resourceData, labels) {
+    // FUNCIÓN PRINCIPAL PARA ACTUALIZAR GRÁFICO DE POBLACIÓN
+    function updatePopulationChart(step, populationValue, resourceValue) {
         if (!populationChartInstance) {
             console.warn('⚠️ populationChartInstance no está inicializado.');
-            // Reintentar inicializar si no está listo
+            // Reintentar inicializar
             const populationCanvas = document.getElementById('populationChart');
             if (populationCanvas) {
                 setupPopulationChart(populationCanvas);
             } else {
-                return; // No se puede renderizar sin canvas
+                return;
             }
         }
         
-        populationChartInstance.data.labels = labels;
-        populationChartInstance.data.datasets[0].data = populationData;
-        populationChartInstance.data.datasets[1].data = resourceData;
+        // Agregar nuevos datos
+        chartData.labels.push(step);
+        chartData.populationData.push(populationValue);
+        chartData.resourceData.push(resourceValue);
         
-        // Limitar los puntos de datos para evitar que se "alargue"
-        const maxDataPoints = 200; // Mantiene los últimos 200 pasos
-        if (labels.length > maxDataPoints) {
-            const startIndex = labels.length - maxDataPoints;
-            populationChartInstance.data.labels = labels.slice(startIndex);
-            populationChartInstance.data.datasets[0].data = populationData.slice(startIndex);
-            populationChartInstance.data.datasets[1].data = resourceData.slice(startIndex);
+        // IMPORTANTE: Limitar datos para evitar crecimiento infinito
+        if (chartData.labels.length > chartData.maxDataPoints) {
+            chartData.labels.shift();
+            chartData.populationData.shift();
+            chartData.resourceData.shift();
         }
-
-        populationChartInstance.update('none'); // Usar 'none' para evitar animaciones y mejorar rendimiento
+        
+        // Actualizar el gráfico
+        populationChartInstance.data.labels = [...chartData.labels];
+        populationChartInstance.data.datasets[0].data = [...chartData.populationData];
+        populationChartInstance.data.datasets[1].data = [...chartData.resourceData];
+        
+        // Actualizar sin animación para mejor rendimiento
+        populationChartInstance.update('none');
+        
+        // Debug log ocasional
+        if (step % 20 === 0) {
+            console.log(`📊 Gráfico actualizado: paso ${step}, puntos: ${chartData.labels.length}/${chartData.maxDataPoints}`);
+        }
     }
     
     function updateSpatialChart(controlledArea, freeArea, disputedArea) {
         if (!spatialChartInstance) return;
         
         spatialChartInstance.data.datasets[0].data = [controlledArea, freeArea, disputedArea];
-        spatialChartInstance.update();
+        spatialChartInstance.update('none');
     }
     
-    function addDataPoint(chartInstance, label, data) {
-        if (!chartInstance) return;
+    function clearAllCharts() {
+        console.log('🧹 Limpiando todos los gráficos...');
         
-        chartInstance.data.labels.push(label);
-        chartInstance.data.datasets.forEach((dataset, index) => {
-            dataset.data.push(data[index] || 0);
-        });
+        // Limpiar datos
+        chartData.labels = [];
+        chartData.populationData = [];
+        chartData.resourceData = [];
         
-        // Mantener solo los últimos 50 puntos para rendimiento
-        if (chartInstance.data.labels.length > 50) {
-            chartInstance.data.labels.shift();
-            chartInstance.data.datasets.forEach(dataset => {
-                dataset.data.shift();
-            });
+        // Actualizar gráfico de población
+        if (populationChartInstance) {
+            populationChartInstance.data.labels = [];
+            populationChartInstance.data.datasets[0].data = [];
+            populationChartInstance.data.datasets[1].data = [];
+            populationChartInstance.update('none');
         }
         
-        chartInstance.update('none');
+        // Limpiar otros gráficos
+        if (spatialChartInstance) {
+            spatialChartInstance.data.datasets[0].data = [0, 100, 0];
+            spatialChartInstance.update('none');
+        }
+        
+        console.log('✅ Gráficos limpiados');
     }
     
-    function clearChart(chartInstance) {
-        if (!chartInstance) return;
+    function resizeCharts() {
+        console.log('📏 Redimensionando gráficos...');
         
-        chartInstance.data.labels = [];
-        chartInstance.data.datasets.forEach(dataset => {
-            dataset.data = [];
-        });
-        chartInstance.update();
+        if (populationChartInstance) {
+            populationChartInstance.resize();
+        }
+        if (spatialChartInstance) {
+            spatialChartInstance.resize();
+        }
+        if (distributionChartInstance) {
+            distributionChartInstance.resize();
+        }
     }
     
     // Funciones de utilidad para análisis
@@ -272,49 +385,75 @@ document.addEventListener('DOMContentLoaded', function() {
         return 'stable';
     }
     
-    function generateTrendAnalysis(populationHistory, resourceHistory) {
+    function generateTrendAnalysis() {
+        if (chartData.populationData.length < 5) {
+            return { 
+                status: 'insufficient_data',
+                message: 'Necesitas al menos 5 puntos de datos para el análisis'
+            };
+        }
+        
         const analysis = {
             population: {
-                trend: calculateTrend(populationHistory),
-                average: populationHistory.reduce((sum, val) => sum + val, 0) / populationHistory.length,
-                max: Math.max(...populationHistory),
-                min: Math.min(...populationHistory),
-                variance: 0
+                trend: calculateTrend(chartData.populationData),
+                average: chartData.populationData.reduce((sum, val) => sum + val, 0) / chartData.populationData.length,
+                max: Math.max(...chartData.populationData),
+                min: Math.min(...chartData.populationData),
+                current: chartData.populationData[chartData.populationData.length - 1]
             },
             resources: {
-                trend: calculateTrend(resourceHistory),
-                average: resourceHistory.reduce((sum, val) => sum + val, 0) / resourceHistory.length,
-                max: Math.max(...resourceHistory),
-                min: Math.min(...resourceHistory),
-                variance: 0
-            }
+                trend: calculateTrend(chartData.resourceData),
+                average: chartData.resourceData.reduce((sum, val) => sum + val, 0) / chartData.resourceData.length,
+                max: Math.max(...chartData.resourceData),
+                min: Math.min(...chartData.resourceData),
+                current: chartData.resourceData[chartData.resourceData.length - 1]
+            },
+            correlation: calculateCorrelation(chartData.populationData, chartData.resourceData)
         };
-        
-        // Calcular varianza
-        analysis.population.variance = populationHistory.reduce((sum, val) => 
-            sum + Math.pow(val - analysis.population.average, 2), 0) / populationHistory.length;
-        
-        analysis.resources.variance = resourceHistory.reduce((sum, val) => 
-            sum + Math.pow(val - analysis.resources.average, 2), 0) / resourceHistory.length;
         
         return analysis;
     }
     
+    function calculateCorrelation(x, y) {
+        if (x.length !== y.length || x.length < 2) return 0;
+        
+        const n = x.length;
+        const sumX = x.reduce((sum, val) => sum + val, 0);
+        const sumY = y.reduce((sum, val) => sum + val, 0);
+        const sumXY = x.reduce((sum, val, i) => sum + (val * y[i]), 0);
+        const sumX2 = x.reduce((sum, val) => sum + (val * val), 0);
+        const sumY2 = y.reduce((sum, val) => sum + (val * val), 0);
+        
+        const correlation = (n * sumXY - sumX * sumY) / 
+            Math.sqrt((n * sumX2 - sumX * sumX) * (n * sumY2 - sumY * sumY));
+        
+        return isNaN(correlation) ? 0 : correlation;
+    }
+    
+    // Redimensionar gráficos cuando cambie el tamaño de la ventana
+    window.addEventListener('resize', () => {
+        setTimeout(resizeCharts, 100);
+    });
+    
     // Exportar funciones para uso externo
     window.ChartController = {
-        updatePopulationChart,
-        updateSpatialChart,
-        // addDataPoint, // Ya no es necesario si updatePopulationChart maneja todo
-        clearChart,
-        calculateMovingAverage,
-        calculateTrend,
-        generateTrendAnalysis,
+        updatePopulationChart: updatePopulationChart,
+        updateSpatialChart: updateSpatialChart,
+        clearAllCharts: clearAllCharts,
+        resizeCharts: resizeCharts,
+        calculateMovingAverage: calculateMovingAverage,
+        calculateTrend: calculateTrend,
+        generateTrendAnalysis: generateTrendAnalysis,
         getPopulationChart: () => populationChartInstance,
-        getSpatialChart: () => spatialChartInstance
+        getSpatialChart: () => spatialChartInstance,
+        getChartData: () => ({ ...chartData }), // Copia de los datos
+        setMaxDataPoints: (max) => {
+            chartData.maxDataPoints = Math.max(10, Math.min(500, max));
+            console.log(`📊 Máximo de puntos establecido en: ${chartData.maxDataPoints}`);
+        }
     };
     
-    
-    // Funciones específicas para la página de análisis
+    // Configuración específica para la página de análisis
     if (window.location.pathname.includes('analysis')) {
         setupAnalysisPage();
     }
@@ -349,7 +488,8 @@ document.addEventListener('DOMContentLoaded', function() {
     
     function updateAnalysisRange(range) {
         console.log('Actualizando rango de análisis:', range);
-        // Implementar lógica para actualizar el rango de datos mostrados
+        const newMaxPoints = parseInt(range) || 100;
+        window.ChartController.setMaxDataPoints(newMaxPoints);
     }
     
     function updateChartType(type) {
@@ -360,13 +500,10 @@ document.addEventListener('DOMContentLoaded', function() {
     function updateAnalysisCharts() {
         // Actualizar gráficos de análisis con datos más recientes
         if (window.SimulationController) {
-            const history = window.SimulationController.getHistory();
-            if (history && history.population && history.population.length > 0) {
-                const analysis = generateTrendAnalysis(
-                    history.population.map(p => p.value),
-                    history.resources.map(r => r.value)
-                );
-                
+            const state = window.SimulationController.getState();
+            if (state && state.system_metrics) {
+                // Actualizar con datos actuales si están disponibles
+                const analysis = generateTrendAnalysis();
                 updateAnalysisMetrics(analysis);
             }
         }
@@ -381,6 +518,13 @@ document.addEventListener('DOMContentLoaded', function() {
             resourceStability: document.getElementById('resourceStability')
         };
         
+        if (analysis.status === 'insufficient_data') {
+            Object.values(elements).forEach(el => {
+                if (el) el.textContent = 'N/A';
+            });
+            return;
+        }
+        
         if (elements.avgPopulation) {
             elements.avgPopulation.textContent = analysis.population.average.toFixed(0);
         }
@@ -390,14 +534,20 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         
         if (elements.populationTrend) {
-            elements.populationTrend.textContent = analysis.population.trend;
+            const trendText = {
+                'increasing': '📈 Creciente',
+                'decreasing': '📉 Decreciente',
+                'stable': '➡️ Estable'
+            };
+            elements.populationTrend.textContent = trendText[analysis.population.trend] || analysis.population.trend;
         }
         
         if (elements.resourceStability) {
-            const stability = analysis.resources.variance < 100 ? 'Alta' : 'Baja';
+            const correlation = Math.abs(analysis.correlation);
+            const stability = correlation > 0.7 ? 'Alta' : correlation > 0.4 ? 'Media' : 'Baja';
             elements.resourceStability.textContent = stability;
         }
     }
     
-    console.log('Sistema de gráficos inicializado');
+    console.log('✅ Sistema de gráficos inicializado completamente');
 });

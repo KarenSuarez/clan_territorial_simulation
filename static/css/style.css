@@ -506,3 +506,206 @@ footer {
     from { opacity: 0; transform: translateY(20px); }
     to { opacity: 1; transform: translateY(0); }
 }
+
+/* AGREGAR AL FINAL DE static/css/style.css */
+
+/* === CORRECCIONES PARA GRÁFICOS === */
+
+/* Prevenir crecimiento infinito del canvas */
+.chart-container {
+    max-width: 100% !important;
+    overflow: hidden !important;
+    box-sizing: border-box !important;
+}
+
+.chart-container canvas {
+    max-width: 100% !important;
+    max-height: 300px !important;
+    box-sizing: border-box !important;
+}
+
+/* Contenedor con altura fija para el gráfico */
+.chart-wrapper {
+    position: relative !important;
+    height: 300px !important;
+    width: 100% !important;
+    overflow: hidden !important;
+}
+
+/* Prevenir que Chart.js modifique el tamaño del contenedor */
+.chart-container .chartjs-render-monitor {
+    max-width: 100% !important;
+    max-height: 300px !important;
+}
+
+/* Estilo para los botones de control del gráfico */
+.chart-controls {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+}
+
+.chart-controls button {
+    padding: 0.5rem 1rem;
+    font-size: 0.85rem;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.chart-controls button:hover {
+    opacity: 0.8;
+    transform: translateY(-1px);
+}
+
+.chart-btn-primary { background: #3498db; color: white; }
+.chart-btn-success { background: #27ae60; color: white; }
+.chart-btn-danger { background: #e74c3c; color: white; }
+
+/* Información de estadísticas del gráfico */
+.chart-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 1rem;
+    margin-top: 1rem;
+    font-size: 0.9rem;
+}
+
+.chart-stat-item {
+    text-align: center;
+    padding: 0.5rem;
+    background: #f8f9fa;
+    border-radius: 4px;
+    border: 1px solid #e9ecef;
+}
+
+.chart-stat-item strong {
+    display: block;
+    margin-bottom: 0.25rem;
+    color: var(--primary-color);
+}
+
+/* Responsive para gráficos */
+@media (max-width: 768px) {
+    .chart-container {
+        padding: 1rem !important;
+    }
+    
+    .chart-wrapper {
+        height: 250px !important;
+    }
+    
+    .chart-stats {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 0.5rem;
+        font-size: 0.8rem;
+    }
+    
+    .chart-controls {
+        flex-wrap: wrap;
+    }
+    
+    .chart-controls button {
+        font-size: 0.8rem;
+        padding: 0.4rem 0.8rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .chart-wrapper {
+        height: 200px !important;
+    }
+    
+    .chart-stats {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* Prevenir overflow en toda la página */
+.simulation-container,
+.content-wrapper {
+    overflow-x: hidden !important;
+}
+
+/* Asegurar que el canvas no cause scroll horizontal */
+body {
+    overflow-x: hidden;
+}
+
+/* Estilo para modales de análisis */
+.trend-analysis-modal {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: white;
+    padding: 2rem;
+    border-radius: 8px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+    z-index: 10000;
+    max-width: 500px;
+    max-height: 80vh;
+    overflow-y: auto;
+}
+
+.trend-analysis-modal h3 {
+    margin-top: 0;
+    color: var(--primary-color);
+}
+
+.trend-analysis-modal pre {
+    font-family: 'Courier New', monospace;
+    font-size: 0.9rem;
+    line-height: 1.4;
+    white-space: pre-wrap;
+    background: #f8f9fa;
+    padding: 1rem;
+    border-radius: 4px;
+    border-left: 4px solid var(--secondary-color);
+}
+
+.trend-analysis-modal button {
+    margin-top: 1rem;
+    padding: 0.5rem 1rem;
+    background: var(--primary-color);
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+/* Loading state para gráficos */
+.chart-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 300px;
+    background: #f8f9fa;
+    border-radius: 4px;
+    color: #666;
+}
+
+.chart-loading::before {
+    content: "📊";
+    font-size: 2rem;
+    margin-right: 1rem;
+}
+
+/* Error state para gráficos */
+.chart-error {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 300px;
+    background: #ffe6e6;
+    border-radius: 4px;
+    color: #d32f2f;
+    border: 1px solid #ffcdd2;
+}
+
+.chart-error::before {
+    content: "⚠️";
+    font-size: 2rem;
+    margin-right: 1rem;
+}
