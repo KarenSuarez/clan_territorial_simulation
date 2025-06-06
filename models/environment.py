@@ -2,11 +2,17 @@
 import numpy as np
 
 class Environment:
-    def __init__(self, grid_size=(50, 50)):
+    def __init__(self, grid_size=(50, 50), max_resource=100.0, regeneration_rate=1.5):
+        print(f"DEBUG: Environment __init__ called with:")
+        print(f"  grid_size={grid_size}")
+        print(f"  max_resource={max_resource}")
+        print(f"  regeneration_rate={regeneration_rate}")
+
         self.grid_size = np.array(grid_size)
-        self.grid = np.random.uniform(30, 80, grid_size)  # Recursos iniciales
-        self.max_resource = 100.0
-        self.regeneration_rate = 1.5
+        self.grid = np.zeros(grid_size)
+        self.max_resource = max_resource
+        self.regeneration_rate = regeneration_rate
+        self.rng = None
     
     def is_valid_position(self, position):
         """Verifica si una posición está dentro del grid"""

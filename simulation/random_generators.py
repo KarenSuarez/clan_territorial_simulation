@@ -1,50 +1,38 @@
 # clan_territorial_simulation/simulation/random_generators.py
+
 import numpy as np
 
 class MersenneTwister:
     def __init__(self, seed):
-        self.state = np.array([seed] + [0] * 623, dtype=np.uint32)
-        self.index = 0
-        self.initialize(seed)
-
-    def initialize(self, seed):
-        self.state[0] = seed & 0xffffffff
-        for i in range(1, 624):
-            self.state[i] = (1812433253 * (self.state[i - 1] ^ (self.state[i - 1] >> 30)) + i) & 0xffffffff
-        self.index = 0
-
-    def twist(self):
-        for i in range(624):
-            y = (self.state[i] & 0x80000000) + (self.state[(i + 1) % 624] & 0x7fffffff)
-            self.state[i] = self.state[(i + 397) % 624] ^ (y >> 1)
-            if y % 2 != 0:
-                self.state[i] ^= 0x9908b0df
-        self.index = 0
-
-    def random_uint32(self):
-        if self.index == 0:
-            self.twist()
-        y = self.state[self.index]
-        y ^= (y >> 11)
-        y ^= (y << 7) & 0x9d2c5680
-        y ^= (y << 15) & 0xefc60000
-        y ^= (y >> 18)
-        self.index = (self.index + 1) % 624
-        return y
+        # Usamos np.random.RandomState para aprovechar su implementación de Mersenne Twister
+        # Esto es mucho más robusto que una implementación manual para fines de simulación compleja.
+        self.rng = np.random.RandomState(seed)
+        self.seed = seed # Guardar la semilla para referencia
 
     def random_float(self):
-        return self.random_uint32() / 4294967295.0
+        """Genera un flotante aleatorio entre 0.0 y 1.0."""
+        return self.rng.rand()
 
-    def random_normal(self, mean=0.0, std_dev=1.0):
-        # Box-Muller transform for normal distribution
-        u1 = self.random_float()
-        u2 = self.random_float()
-        z0 = np.sqrt(-2.0 * np.log(u1)) * np.cos(2.0 * np.pi * u2)
-        return mean + std_dev * z0
+    def random_uniform(self, low=0.0, high=1.0, size=None):
+        """Genera números aleatorios de una distribución uniforme."""
+        return self.rng.uniform(low, high, size=size)
 
-# Ejemplo de uso
+    def random_normal(self, mean=0.0, std_dev=1.0, size=None):
+        """Genera números aleatorios de una distribución normal (gaussiana)."""
+        return self.rng.normal(mean, std_dev, size=size)
+    
+    def random_randint(self, low, high=None, size=None):
+        """Genera enteros aleatorios."""
+        return self.rng.randint(low, high, size=size)
+
+    def random_choice(self, a, size=None, replace=True, p=None):
+        """Genera una muestra aleatoria de una matriz dada."""
+        return self.rng.choice(a, size=size, replace=replace, p=p)
+
+# Ejemplo de uso (el if __name__ == '__main__': se puede dejar como está, solo para pruebas)
 if __name__ == '__main__':
-    rng = MersenneTwister(12345)
-    print("Random uint32:", rng.random_uint32())
-    print("Random float:", rng.random_float())
-    print("Random normal:", rng.random_normal())
+    rng_test = MersenneTwister(12345)
+    print("Random float:", rng_test.random_float())
+    print("Random uniform (5):", rng_test.random_uniform(0, 10, 5))
+    print("Random normal:", rng_test.random_normal())
+    print("Random randint (1, 10):", rng_test.random_randint(1, 10))

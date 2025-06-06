@@ -26,11 +26,20 @@ document.addEventListener('DOMContentLoaded', () => {
     const timeElapsedDisplay = document.getElementById('timeElapsed');
     const simulationStatus = document.getElementById('simulationStatus');
     const statusIndicator = document.getElementById('statusIndicator');
+    const modeDisplay = document.getElementById('modeDisplay'); 
     
     // Elementos de control
     const speedSlider = document.getElementById('speedSlider');
     const speedValue = document.getElementById('speedValue');
     const autoResetCheckbox = document.getElementById('autoReset');
+    const maxStepsInput = document.getElementById('maxStepsInput'); // Input para maxSteps
+    const configForm = document.getElementById('configForm');
+    console.log('DEBUG: configForm element:', configForm); // Añade esto
+
+    const simulationModeSelect = document.getElementById('simulation_mode');
+    const configFileSelect = document.getElementById('config_file');
+    const seedInput = document.getElementById('seed');
+    
     
     // Estado de la simulación
     let simulationData = null;
@@ -75,8 +84,9 @@ document.addEventListener('DOMContentLoaded', () => {
             socket.on('connect', () => {
                 console.log('✅ WebSocket conectado');
                 updateConnectionStatus(true);
-                // Solicitar estado inicial al conectar
-                socket.emit('request_state');
+                socket.emit('request_state'); // Solicitar estado inicial
+                socket.emit('get_speed'); // Solicitar velocidad actual
+                socket.emit('get_simulation_config'); // Solicitar configuración actual
             });
             
             socket.on('disconnect', () => {
@@ -85,6 +95,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 simulationRunning = false;
                 updateStatusIndicator(false);
                 updateButtonStates();
+                // Notificación de desconexión
+                showNotification('Conexión con el servidor perdida.', 'error', 0); // Mostrar indefinidamente
             });
             
             socket.on('simulation_state', (data) => {
@@ -98,6 +110,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 simulationRunning = true;
                 updateStatusIndicator(true);
                 updateButtonStates();
+                showNotification('Simulación iniciada', 'success');
             });
             
             socket.on('simulation_terminated', (data) => {
@@ -132,19 +145,29 @@ document.addEventListener('DOMContentLoaded', () => {
                 console.log('📥 Configuración recibida:', config);
                 maxSteps = config.max_steps || 500;
                 autoStop = config.auto_stop !== undefined ? config.auto_stop : true;
+                if (simulationModeSelect) simulationModeSelect.value = config.current_mode || 'stochastic';
+                if (configFileSelect) configFileSelect.value = config.current_config_file || 'stochastic_default';
+                if (seedInput) seedInput.value = config.current_seed !== null ? config.current_seed : '';
+
                 updateControlsDisplay();
             });
-            
-            // Solicitar configuración inicial
-            socket.emit('get_speed');
-            socket.emit('get_simulation_config');
+
+            socket.on('configuration_applied', (data) => {
+                console.log('✅ Configuración aplicada:', data.message);
+                showNotification(data.message, 'success');
+            });
+
+            socket.on('configuration_error', (error) => {
+                console.error('❌ Error aplicando configuración:', error);
+                showNotification('Error aplicando configuración: ' + error.error, 'error');
+            });
             
         } catch (error) {
             console.error('❌ Error configurando WebSocket:', error);
         }
     }
     
-    function setupEventListeners() {
+function setupEventListeners() {
         console.log('🎮 Configurando controles...');
         
         if (playButton) {
@@ -175,7 +198,6 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
         
-        // Control de velocidad
         if (speedSlider) {
             speedSlider.addEventListener('input', () => {
                 console.log('🎚️ Slider de velocidad cambiado:', speedSlider.value);
@@ -183,46 +205,96 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
         
-        // Auto-reset checkbox
         if (autoResetCheckbox) {
             autoResetCheckbox.addEventListener('change', () => {
-                console.log('🔄 Auto-reset toggled:', autoResetCheckbox.checked);
+                console.log('🔄 Auto-stop toggled:', autoResetCheckbox.checked);
                 toggleAutoStop();
             });
         }
+
+        if (maxStepsInput) {
+            maxStepsInput.addEventListener('change', () => {
+                updateMaxSteps();
+            });
+        }
+
+        // Interceptar el envío del formulario de configuración
+        if (configForm) {
+        console.log("DEBUG: Formulario de configuración encontrado. Adjuntando evento 'submit'.");
+        configForm.addEventListener('submit', (event) => {
+        console.log("DEBUG: Evento 'submit' del formulario detectado.");
+        event.preventDefault(); // ¡Esta línea es la clave!
+        console.log('DEBUG: event.preventDefault() ejecutado. La página NO DEBERÍA recargarse.');
+
+        // Recolectar datos del formulario
+        const mode = simulationModeSelect.value;
+        const configFile = configFileSelect.value;
+        const seed = seedInput.value;
+
+        if (socket && socket.connected) {
+            console.log('DEBUG: Enviando configure_simulation via WebSocket.');
+            socket.emit('configure_simulation', { 
+                mode: mode, 
+                config_file: configFile, 
+                seed: seed 
+            });
+            showNotification('Aplicando configuración...', 'info');
+        } else {
+            console.error('DEBUG: Socket no conectado al intentar configurar.');
+            showNotification('Error: Cliente WebSocket desconectado. No se puede aplicar la configuración.', 'error');
+        }
+    });
+    } else {
+        console.error("DEBUG: ¡El formulario de configuración con ID 'configForm' NO FUE ENCONTRADO!");
+    }
+
+        // Auto-save y restore de las selecciones de modo y configuración
+        if (simulationModeSelect) {
+            simulationModeSelect.addEventListener('change', function() {
+                localStorage.setItem('sim_mode', this.value);
+                if (this.value === 'deterministic' && !seedInput.value) {
+                    seedInput.value = Math.floor(Math.random() * 999999) + 1;
+                }
+            });
+            const savedMode = localStorage.getItem('sim_mode');
+            if (savedMode && simulationModeSelect.querySelector(`option[value="${savedMode}"]`)) {
+                simulationModeSelect.value = savedMode;
+            }
+        }
+
+        if (configFileSelect) {
+            configFileSelect.addEventListener('change', function() {
+                localStorage.setItem('sim_config', this.value);
+            });
+            const savedConfig = localStorage.getItem('sim_config');
+            if (savedConfig && configFileSelect.querySelector(`option[value="${savedConfig}"]`)) {
+                configFileSelect.value = savedConfig;
+            }
+        }
+        // No guardamos la semilla en localStorage
         
-        // Atajos de teclado
         document.addEventListener('keydown', (event) => {
             if (event.target.tagName === 'INPUT') return;
-            
             switch(event.key) {
                 case ' ':
                     event.preventDefault();
-                    if (simulationRunning) {
-                        pauseSimulation();
-                    } else {
-                        startSimulation();
-                    }
+                    if (simulationRunning) { pauseSimulation(); } else { startSimulation(); }
                     break;
-                case 'r':
-                    event.preventDefault();
-                    resetSimulation();
-                    break;
-                case 's':
-                    event.preventDefault();
-                    stepSimulation();
-                    break;
+                case 'r': event.preventDefault(); resetSimulation(); break;
+                case 's': event.preventDefault(); stepSimulation(); break;
             }
         });
     }
     
-    function handleSimulationState(data) {
-        console.log(`📊 Procesando estado: ${data.clans ? data.clans.length : 0} clanes, paso ${data.step}`);
+      function handleSimulationState(data) {
+        console.log(`📥 Estado recibido: ${data.clans ? data.clans.length : 0} clanes, paso ${data.step}`);
         
         simulationData = data;
         
-        // Actualizar estado de ejecución basado en datos del servidor
         simulationRunning = data.running || false;
+        maxSteps = data.max_steps || maxSteps;
+        autoStop = data.auto_stop !== undefined ? data.auto_stop : true;
+
         updateStatusIndicator(simulationRunning);
         updateButtonStates();
         
@@ -230,6 +302,21 @@ document.addEventListener('DOMContentLoaded', () => {
         updateMetrics();
         updateClanMetrics();
         updateProgressIndicator();
+        updateControlsDisplay();
+        
+        // **Líneas del gráfico COMENTADAS TEMPORALMENTE**
+        /*
+        if (window.ChartController && simulationData.last_populations && simulationData.last_resources) {
+            const labels = Array.from({length: simulationData.last_populations.length}, 
+                                      (_, i) => (simulationData.step - simulationData.last_populations.length + 1) + i);
+            
+            window.ChartController.updatePopulationChart(
+                simulationData.last_populations, 
+                simulationData.last_resources, 
+                labels
+            );
+        }
+        */
     }
     
     function updateStatusIndicator(isRunning) {
@@ -413,15 +500,34 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
     
-    function updateControlsDisplay() {
+     function updateControlsDisplay() {
         if (autoResetCheckbox) {
             autoResetCheckbox.checked = autoStop;
         }
         
-        // Actualizar display de pasos máximos
-        const maxStepsInput = document.getElementById('maxStepsInput');
         if (maxStepsInput) {
             maxStepsInput.value = maxSteps;
+        }
+
+        if (modeDisplay && simulationData && simulationData.mode) {
+            modeDisplay.textContent = simulationData.mode.charAt(0).toUpperCase() + simulationData.mode.slice(1);
+        }
+
+        if (seedInput && simulationData && simulationData.current_seed !== undefined) {
+             seedInput.value = simulationData.current_seed === null ? '' : simulationData.current_seed;
+        }
+        // Restaurar la selección de modo y config si viene del backend
+        if (simulationData && simulationData.current_mode) {
+            const modeSelect = document.getElementById('simulation_mode');
+            if (modeSelect && modeSelect.querySelector(`option[value="${simulationData.current_mode}"]`)) {
+                modeSelect.value = simulationData.current_mode;
+            }
+        }
+        if (simulationData && simulationData.current_config_file) {
+            const configSelect = document.getElementById('config_file');
+            if (configSelect && configSelect.querySelector(`option[value="${simulationData.current_config_file}"]`)) {
+                configSelect.value = simulationData.current_config_file;
+            }
         }
     }
     
@@ -582,17 +688,26 @@ document.addEventListener('DOMContentLoaded', () => {
         ctx.strokeRect(x - width/2, y, width, barHeight);
     }
     
-    function updateMetrics() {
+     function updateMetrics() {
         if (!simulationData) return;
+
+        console.log("DEBUG_RECEIVE: Datos recibidos del servidor:", data);
         
-        const totalPop = simulationData.clans ? simulationData.clans.reduce((sum, clan) => sum + clan.size, 0) : 0;
-        const totalRes = simulationData.resource_grid ? 
-            simulationData.resource_grid.flat().reduce((sum, r) => sum + r, 0) : 0;
-        
+        // Acceder a metrics del engine, que ahora viene en simulation_data.system_metrics
+        const totalPop = simulationData.system_metrics?.total_population || 0;
+        const totalRes = simulationData.system_metrics?.total_resources || 0; 
+
+        console.log("DEBUG_RECEIVE: Population:", data.system_metrics?.total_population);
+        console.log("DEBUG_RECEIVE: Resources:", data.system_metrics?.total_resources);
+// 
+
         if (populationDisplay) populationDisplay.textContent = totalPop;
         if (totalResourceDisplay) totalResourceDisplay.textContent = totalRes.toFixed(1);
+        if (populationDisplay) console.log("DEBUG_UPDATE: Updating population to:", totalPop);
+        if (totalResourceDisplay) console.log("DEBUG_UPDATE: Updating resources to:", totalRes);
         if (stepCountDisplay) stepCountDisplay.textContent = `${simulationData.step || 0}/${maxSteps}`;
         if (timeElapsedDisplay) timeElapsedDisplay.textContent = formatTime(simulationData.time || 0);
+        if (modeDisplay) modeDisplay.textContent = simulationData.mode.charAt(0).toUpperCase() + simulationData.mode.slice(1);
     }
     
     function updateClanMetrics() {
@@ -748,7 +863,39 @@ document.addEventListener('DOMContentLoaded', () => {
     };
     
     console.log('✅ Simulación completamente configurada con estado dinámico');
+
+       window.exportCurrentData = function() {
+        if (window.SimulationController && window.SimulationController.getState()) {
+            const data = {
+                state: window.SimulationController.getState(),
+                history: {
+                    population: simulationData.last_populations || [],
+                    resources: simulationData.last_resources || []
+                },
+                timestamp: new Date().toISOString(),
+                config: {
+                    mode: simulationModeSelect?.value,
+                    config_file: configFileSelect?.value,
+                    seed: seedInput?.value
+                }
+            };
+
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `simulation_data_${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            showNotification('Datos exportados con éxito!', 'success');
+        } else {
+            showNotification('No hay datos de simulación disponibles para exportar.', 'error');
+        }
+    }
 });
+
 
 // Función global para actualizar máximo de pasos (llamada desde HTML)
 function updateMaxSteps() {

@@ -3,10 +3,11 @@ document.addEventListener('DOMContentLoaded', function() {
     console.log('Inicializando sistema de gráficos...');
     
     // Variables globales para gráficos
-    let populationChartInstance = null;
-    let resourceChartInstance = null;
+    let populationChartInstance = null; // ¡Ahora global dentro de este ámbito!
+    let resourceChartInstance = null; // Mantener por si se usa
     let spatialChartInstance = null;
-    
+    let distributionChartInstance = null; // Nuevo: para el gráfico de distribución
+
     // Configuración de colores
     const chartColors = {
         primary: '#3498db',
@@ -35,11 +36,17 @@ document.addEventListener('DOMContentLoaded', function() {
             setupPopulationChart(populationCanvas);
         }
         
-        // Configurar otros gráficos
+        // Configurar otros gráficos (los que están en otras páginas de análisis)
         setupAnalysisCharts();
     }
     
     function setupPopulationChart(canvas) {
+        // Si ya existe una instancia, la destruimos antes de crear una nueva
+        // Esto es crucial para evitar el "trabado" y que se alargue el gráfico
+        if (populationChartInstance) {
+            populationChartInstance.destroy();
+        }
+
         const ctx = canvas.getContext('2d');
         
         populationChartInstance = new Chart(ctx, {
@@ -69,7 +76,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 responsive: true,
                 maintainAspectRatio: false,
                 animation: {
-                    duration: 0 // Desactivar animaciones para mejor rendimiento
+                    duration: 0 // Desactivar animaciones para mejor rendimiento en tiempo real
                 },
                 scales: {
                     x: {
@@ -131,7 +138,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             }
         });
-        
         console.log('Gráfico de población configurado');
     }
     
@@ -147,42 +153,10 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!canvas) return;
         
         const ctx = canvas.getContext('2d');
+        // También destruir si ya existe para evitar duplicados
+        if (canvas.chart) canvas.chart.destroy(); 
         
-        new Chart(ctx, {
-            type: 'scatter',
-            data: {
-                datasets: [{
-                    label: 'Puntos de Convergencia',
-                    data: [],
-                    backgroundColor: chartColors.accent,
-                    borderColor: chartColors.accent,
-                    pointRadius: 4
-                }]
-            },
-            options: {
-                responsive: true,
-                scales: {
-                    x: {
-                        title: {
-                            display: true,
-                            text: 'Tiempo'
-                        }
-                    },
-                    y: {
-                        title: {
-                            display: true,
-                            text: 'Valor de Convergencia'
-                        }
-                    }
-                },
-                plugins: {
-                    title: {
-                        display: true,
-                        text: 'Análisis de Convergencia'
-                    }
-                }
-            }
-        });
+        canvas.chart = new Chart(ctx, { /* ... */ });
     }
     
     function setupSpatialChart() {
@@ -190,35 +164,9 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!canvas) return;
         
         const ctx = canvas.getContext('2d');
-        
-        spatialChartInstance = new Chart(ctx, {
-            type: 'doughnut',
-            data: {
-                labels: ['Área Controlada', 'Área Libre', 'Área en Disputa'],
-                datasets: [{
-                    data: [40, 50, 10],
-                    backgroundColor: [
-                        chartColors.primary,
-                        chartColors.secondary,
-                        chartColors.warning
-                    ],
-                    borderWidth: 2,
-                    borderColor: '#ffffff'
-                }]
-            },
-            options: {
-                responsive: true,
-                plugins: {
-                    title: {
-                        display: true,
-                        text: 'Distribución Territorial'
-                    },
-                    legend: {
-                        position: 'bottom'
-                    }
-                }
-            }
-        });
+        if (canvas.chart) canvas.chart.destroy(); 
+
+        spatialChartInstance = new Chart(ctx, { /* ... */ });
     }
     
     function setupDistributionChart() {
@@ -226,54 +174,38 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!canvas) return;
         
         const ctx = canvas.getContext('2d');
-        
-        new Chart(ctx, {
-            type: 'bar',
-            data: {
-                labels: ['0-10', '11-20', '21-30', '31-40', '41-50', '50+'],
-                datasets: [{
-                    label: 'Distribución de Población',
-                    data: [5, 15, 25, 30, 20, 5],
-                    backgroundColor: chartColors.info + '80',
-                    borderColor: chartColors.info,
-                    borderWidth: 1
-                }]
-            },
-            options: {
-                responsive: true,
-                scales: {
-                    x: {
-                        title: {
-                            display: true,
-                            text: 'Rangos de Población'
-                        }
-                    },
-                    y: {
-                        title: {
-                            display: true,
-                            text: 'Frecuencia (%)'
-                        },
-                        beginAtZero: true
-                    }
-                },
-                plugins: {
-                    title: {
-                        display: true,
-                        text: 'Distribución de Probabilidad - Población'
-                    }
-                }
-            }
-        });
+        if (canvas.chart) canvas.chart.destroy(); 
+
+        distributionChartInstance = new Chart(ctx, { /* ... */ });
     }
     
     // Funciones para actualizar gráficos
     function updatePopulationChart(populationData, resourceData, labels) {
-        if (!populationChartInstance) return;
+        if (!populationChartInstance) {
+            console.warn('⚠️ populationChartInstance no está inicializado.');
+            // Reintentar inicializar si no está listo
+            const populationCanvas = document.getElementById('populationChart');
+            if (populationCanvas) {
+                setupPopulationChart(populationCanvas);
+            } else {
+                return; // No se puede renderizar sin canvas
+            }
+        }
         
         populationChartInstance.data.labels = labels;
         populationChartInstance.data.datasets[0].data = populationData;
         populationChartInstance.data.datasets[1].data = resourceData;
-        populationChartInstance.update('none');
+        
+        // Limitar los puntos de datos para evitar que se "alargue"
+        const maxDataPoints = 200; // Mantiene los últimos 200 pasos
+        if (labels.length > maxDataPoints) {
+            const startIndex = labels.length - maxDataPoints;
+            populationChartInstance.data.labels = labels.slice(startIndex);
+            populationChartInstance.data.datasets[0].data = populationData.slice(startIndex);
+            populationChartInstance.data.datasets[1].data = resourceData.slice(startIndex);
+        }
+
+        populationChartInstance.update('none'); // Usar 'none' para evitar animaciones y mejorar rendimiento
     }
     
     function updateSpatialChart(controlledArea, freeArea, disputedArea) {
@@ -372,7 +304,7 @@ document.addEventListener('DOMContentLoaded', function() {
     window.ChartController = {
         updatePopulationChart,
         updateSpatialChart,
-        addDataPoint,
+        // addDataPoint, // Ya no es necesario si updatePopulationChart maneja todo
         clearChart,
         calculateMovingAverage,
         calculateTrend,
@@ -380,6 +312,7 @@ document.addEventListener('DOMContentLoaded', function() {
         getPopulationChart: () => populationChartInstance,
         getSpatialChart: () => spatialChartInstance
     };
+    
     
     // Funciones específicas para la página de análisis
     if (window.location.pathname.includes('analysis')) {
