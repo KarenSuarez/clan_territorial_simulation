@@ -1,4 +1,3 @@
-# clan_territorial_simulation/visualization/charts.py
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import numpy as np
@@ -47,8 +46,6 @@ def plot_territory_heatmap(history, last_n_steps=-1, blur_radius=2):
         clan_territories = {}
         for clan in state['clans']:
             pos_x, pos_y = int(clan['position'][0]), int(clan['position'][1])
-            # Simplistic representation: mark the current cell as belonging to the clan
-            # A more sophisticated approach would track actual territory
             if 0 <= pos_x < grid_size[0] and 0 <= pos_y < grid_size[1]:
                 clan_presence[pos_y, pos_x] += 1
 
@@ -76,7 +73,6 @@ def analyze_spatial_patterns(history):
     if len(clan_positions) < 2:
         return "Se necesitan al menos dos clanes para analizar patrones espaciales."
 
-    # Ejemplo simple: calcular la distancia promedio entre clanes
     from scipy.spatial.distance import pdist, squareform
     distances = pdist(clan_positions)
     avg_distance = np.mean(distances)

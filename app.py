@@ -1,5 +1,3 @@
-# app.py - Versión refactorizada para usar SimulationEngine y configuraciones externas
-
 from flask import Flask, render_template, request
 from flask_socketio import SocketIO, emit
 import numpy as np
@@ -8,13 +6,10 @@ import os
 import time
 from datetime import datetime
 from threading import Thread, Lock
-
-# Importar las clases de modelos y motor
 from models.environment import Environment
 from models.clan import Clan
 from simulation.engine import SimulationEngine
 from simulation.modes import StochasticMode, DeterministicMode
-# Importamos config_default para valores por defecto si no se carga un JSON
 import data.configs.config_default as default_config 
 
 
@@ -22,14 +17,12 @@ app = Flask(__name__)
 app.config['SECRET_KEY'] = 'secret!'
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
 
-# Variables globales con lock para thread safety
 simulation_lock = Lock()
-current_simulation_engine = None # Instancia del motor de simulación
-current_config = {} # Configuración cargada
-current_simulation_mode_name = 'stochastic' # Para el frontend
-# Modos y RNG globales para que puedan ser usados por cualquier parte que lo necesite (p.ej. initialize_simulation)
-current_mode_instance = None # Instancia del modo (StochasticMode o DeterministicMode)
-global_rng_seed = None # Semilla global para control total
+current_simulation_engine = None 
+current_config = {} 
+current_simulation_mode_name = 'stochastic' 
+current_mode_instance = None 
+global_rng_seed = None
 
 simulation_data = {
     'running': False,
@@ -65,7 +58,6 @@ def initialize_simulation(mode_name='stochastic', config_name='stochastic_defaul
 
         # 1. Cargar configuración base
         base_config = load_config_file(config_name)
-        # Combinar con config_default para tener valores por defecto si no están en el JSON
         combined_config = {
             'GRID_SIZE': custom_grid_size or default_config.GRID_SIZE,
             'INITIAL_CLAN_COUNT': default_config.INITIAL_CLAN_COUNT,
@@ -75,21 +67,20 @@ def initialize_simulation(mode_name='stochastic', config_name='stochastic_defaul
             'RESOURCE_REGEN_RATE': default_config.RESOURCE_REGEN_RATE,
             'RESOURCE_REQUIRED_PER_INDIVIDUAL': default_config.RESOURCE_REQUIRED_PER_INDIVIDUAL,
             'MORTALITY_STARVATION_MAX': default_config.MORTALITY_STARVATION_MAX,
-            'simulation_steps': simulation_data['max_steps'], # Default from app.py initially
-            'dt': 0.2, # Default dt
-            'movement_noise_std': 0.0, # Default for stochastic mode
-            'forage_probability': 1.0 # Default for stochastic mode
+            'simulation_steps': simulation_data['max_steps'],
+            'dt': 0.2,
+            'movement_noise_std': 0.0,
+            'forage_probability': 1.0
         }
         combined_config.update(base_config)
         
-        # Aplicar tamaño de rejilla personalizado si se proporciona
         if custom_grid_size:
             combined_config['GRID_SIZE'] = custom_grid_size
             print(f"📐 Tamaño de rejilla personalizado aplicado: {custom_grid_size}")
         
         current_config = combined_config
         
-        global_rng_seed = seed # Guardar la semilla globalmente para MersenneTwister
+        global_rng_seed = seed
 
         # 2. Configurar el modo de simulación y el RNG
         current_simulation_mode_name = mode_name
@@ -102,7 +93,6 @@ def initialize_simulation(mode_name='stochastic', config_name='stochastic_defaul
             current_simulation_mode_name = 'stochastic'
             current_mode_instance = StochasticMode(seed=global_rng_seed)
         
-        # Aplicar configuraciones específicas del modo
         if 'movement_noise_std' in current_config:
             current_mode_instance.config['movement_noise_std'] = current_config['movement_noise_std']
         if 'forage_probability' in current_config:
@@ -113,13 +103,10 @@ def initialize_simulation(mode_name='stochastic', config_name='stochastic_defaul
         env = Environment(grid_size=current_config['GRID_SIZE'])
         env.max_resource = current_config['RESOURCE_MAX']
         env.regeneration_rate = current_config['RESOURCE_REGEN_RATE']
-        
-        # Inicializar recursos usando el RNG del modo
+
         if current_simulation_mode_name == 'stochastic':
             env.grid = current_mode_instance.rng.random_uniform(30, 80, current_config['GRID_SIZE'])
         else:
-            # Modo determinista podría tener una distribución inicial fija o también controlada por semilla
-            # Por ahora, usaremos el mismo RNG para mantener consistencia
             env.grid = current_mode_instance.rng.random_uniform(30, 80, current_config['GRID_SIZE'])
 
 
@@ -128,17 +115,15 @@ def initialize_simulation(mode_name='stochastic', config_name='stochastic_defaul
         num_clans_to_create = current_config['INITIAL_CLAN_COUNT']
         for i in range(num_clans_to_create):
             initial_size = current_mode_instance.rng.random_randint(current_config['MIN_CLAN_SIZE'], current_config['MAX_CLAN_SIZE'])
-            # Posiciones aleatorias dentro del grid usando el RNG del modo
             pos_x = current_mode_instance.rng.random_uniform(0, current_config['GRID_SIZE'][0])
             pos_y = current_mode_instance.rng.random_uniform(0, current_config['GRID_SIZE'][1])
             initial_position = np.array([pos_x, pos_y])
 
             clan_params = {
                 'resource_required_per_individual': current_config['RESOURCE_REQUIRED_PER_INDIVIDUAL']
-                # Otros parámetros de clan se pueden añadir aquí desde la config
             }
             clans.append(Clan(i + 1, initial_size, initial_position, clan_params))
-            print(f"✅ Clan {clans[-1].id}: tamaño={clans[-1].size}, pos=({clans[-1].position[0]:.1f}, {clans[-1].position[1]:.1f})")
+            print(f"Clan {clans[-1].id}: tamaño={clans[-1].size}, pos=({clans[-1].position[0]:.1f}, {clans[-1].position[1]:.1f})")
 
         # 5. Instanciar SimulationEngine
         simulation_data['max_steps'] = current_config.get('simulation_steps', 500)
@@ -147,22 +132,21 @@ def initialize_simulation(mode_name='stochastic', config_name='stochastic_defaul
         current_simulation_engine = SimulationEngine(
             environment=env,
             initial_clans=clans,
-            simulation_mode=current_mode_instance, # Pasar la instancia del modo
+            simulation_mode=current_mode_instance,
             dt=simulation_data['dt'],
-            seed=global_rng_seed # La semilla se maneja dentro del modo y Engine
+            seed=global_rng_seed
         )
-        
-        # Resetear datos de simulación
+
         simulation_data['step'] = 0
         simulation_data['time'] = 0.0
         simulation_data['running'] = False
         simulation_data['speed_multiplier'] = 1.0
-        simulation_data['update_interval'] = 1.0 # Intervalo base para socketio.sleep
+        simulation_data['update_interval'] = 1.0
         simulation_data['extinction_counter'] = 0
         simulation_data['last_populations'] = []
 
-        print(f"✅ Simulación inicializada con {len(current_simulation_engine.clans)} clanes en modo {current_simulation_mode_name}")
-        print(f"   Grid: {env.grid_size[0]}x{env.grid_size[1]}, Max Steps: {simulation_data['max_steps']}")
+        print(f"Simulación inicializada con {len(current_simulation_engine.clans)} clanes en modo {current_simulation_mode_name}")
+        print(f"Grid: {env.grid_size[0]}x{env.grid_size[1]}, Max Steps: {simulation_data['max_steps']}")
 
 
 def simulation_step():
@@ -172,26 +156,19 @@ def simulation_step():
     with simulation_lock:
         if not simulation_data['running'] or current_simulation_engine is None:
             return None
-
-        # print(f"🔄 Ejecutando paso {simulation_data['step'] + 1} del motor")
         
-        current_simulation_engine.run_step() # El motor avanza su propio tiempo y step_count
+        current_simulation_engine.run_step()
 
-        # Sincronizar datos globales con el motor
         simulation_data['step'] = current_simulation_engine.step_count
         simulation_data['time'] = current_simulation_engine.time
         
         active_clans = len(current_simulation_engine.clans)
         total_pop = sum(c.size for c in current_simulation_engine.clans)
 
-        # Registrar población para análisis de convergencia
         simulation_data['last_populations'].append(total_pop)
         if len(simulation_data['last_populations']) > simulation_data['convergence_threshold']:
             simulation_data['last_populations'].pop(0)
 
-        # print(f"📊 Paso {simulation_data['step']}: {active_clans} clanes, {total_pop} población total")
-
-        # Verificar condiciones de finalización
         should_stop, reason = check_termination_conditions()
         if should_stop:
             simulation_data['running'] = False
@@ -203,7 +180,6 @@ def simulation_step():
 
 def check_termination_conditions():
     """Verifica si la simulación debe terminar."""
-    # Asegurarse de usar current_simulation_engine para el estado más reciente
     if current_simulation_engine is None:
         return True, "Motor de simulación no inicializado."
 
@@ -221,9 +197,8 @@ def check_termination_conditions():
         if simulation_data['extinction_counter'] >= simulation_data['extinction_threshold']:
             return True, "Extinción total: No quedan individuos en ningún clan"
         else:
-            # No parar inmediatamente si el contador no ha llegado al umbral
             return False, "" 
-    else: # Si hay población, resetear el contador de extinción
+    else:
         simulation_data['extinction_counter'] = 0
 
     # 2. Un solo clan sobreviviente (dominancia total)

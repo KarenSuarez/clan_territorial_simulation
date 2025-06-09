@@ -1,4 +1,3 @@
-# visualization/renderer.py - Renderizador mejorado con información territorial
 import numpy as np
 
 class SimulationRenderer:
@@ -11,7 +10,6 @@ class SimulationRenderer:
     def render_state(self, simulation_state):
         """Convierte estado de simulación a formato JSON enriquecido para frontend"""
         try:
-            # Verificar que el estado tiene la estructura esperada
             if not simulation_state or 'clans' not in simulation_state:
                 return self._get_emergency_state()
             
@@ -34,7 +32,6 @@ class SimulationRenderer:
             
             self.last_rendered_time = simulation_state.get('time', 0)
             
-            # Debug info
             print(f"Renderizado exitoso: {len(rendered_state['clans'])} clanes, "
                   f"patrones: {len(rendered_state['emergent_patterns'])}")
             
@@ -49,19 +46,16 @@ class SimulationRenderer:
     def _prepare_resource_grid(self, resource_grid):
         """Prepara la grilla de recursos con información adicional"""
         if not resource_grid:
-            # Grid por defecto 50x50
+
             return [[np.random.uniform(30, 70) for _ in range(50)] for _ in range(50)]
         
-        # Asegurar que es una lista de listas y normalizar valores
         if isinstance(resource_grid, np.ndarray):
             resource_grid = resource_grid.tolist()
         
-        # Normalizar valores para mejor visualización
         processed_grid = []
         for row in resource_grid:
             processed_row = []
             for cell in row:
-                # Asegurar que los valores estén en rango razonable
                 normalized_value = max(0, min(100, float(cell)))
                 processed_row.append(normalized_value)
             processed_grid.append(processed_row)
@@ -74,7 +68,7 @@ class SimulationRenderer:
         
         for clan in clans:
             if clan.get('size', 0) <= 0:
-                continue  # Saltar clanes extintos
+                continue
             
             prepared_clan = {
                 'id': clan.get('id', 0),
@@ -88,8 +82,6 @@ class SimulationRenderer:
                 'territory_size': clan.get('territory_size', 0),
                 'allies': clan.get('allies', []),
                 'enemies': clan.get('enemies', []),
-                
-                # Información visual adicional
                 'visual_size': self._calculate_visual_size(clan.get('size', 1)),
                 'health_percentage': clan.get('energy', 50),
                 'state_color': self._get_state_color(clan.get('state', 'foraging')),
@@ -142,13 +134,11 @@ class SimulationRenderer:
     
     def _prepare_interaction_data(self, simulation_state):
         """Prepara datos de interacciones para visualización"""
-        # Por ahora retorna estructura básica
-        # Se puede expandir para mostrar redes de interacciones
         return {
             'total_interactions': simulation_state.get('system_metrics', {}).get('total_interactions', 0),
-            'cooperation_rate': 0.5,  # Placeholder
-            'conflict_rate': 0.3,     # Placeholder
-            'alliance_networks': []   # Placeholder
+            'cooperation_rate': 0.5, 
+            'conflict_rate': 0.3,   
+            'alliance_networks': []  
         }
     
     def _prepare_position(self, position):
@@ -163,7 +153,6 @@ class SimulationRenderer:
     
     def _calculate_visual_size(self, clan_size):
         """Calcula tamaño visual apropiado para el clan"""
-        # Tamaño visual basado en raíz cuadrada para mejor representación
         base_size = max(3, min(15, np.sqrt(clan_size) * 1.5))
         return float(base_size)
     
@@ -175,7 +164,7 @@ class SimulationRenderer:
             'fighting': '#e74c3c',      # Rojo - en combate
             'resting': '#9b59b6'        # Púrpura - descansando
         }
-        return state_colors.get(state, '#95a5a6')  # Gris por defecto
+        return state_colors.get(state, '#95a5a6') 
     
     def _get_strategy_symbol(self, strategy):
         """Retorna símbolo asociado con la estrategia del clan"""
@@ -193,11 +182,10 @@ class SimulationRenderer:
         if not clans:
             return 0.0
         
-        # Estabilidad basada en varianza de energías y tamaños
         energies = [clan.get('energy', 50) for clan in clans]
         sizes = [clan.get('size', 1) for clan in clans]
         
-        energy_stability = 1.0 - (np.var(energies) / 2500)  # Normalizado
+        energy_stability = 1.0 - (np.var(energies) / 2500)
         size_stability = 1.0 - (np.var(sizes) / max(1, np.mean(sizes)**2))
         
         return max(0.0, min(1.0, (energy_stability + size_stability) / 2))
@@ -206,12 +194,10 @@ class SimulationRenderer:
         """Calcula índice de diversidad de estrategias"""
         if not clans:
             return 0.0
-        
-        # Contar estrategias diferentes
+
         strategies = [clan.get('strategy', 'cooperative') for clan in clans]
         unique_strategies = set(strategies)
         
-        # Índice de Shannon simplificado
         total = len(strategies)
         diversity = 0.0
         
@@ -220,7 +206,6 @@ class SimulationRenderer:
             if proportion > 0:
                 diversity -= proportion * np.log(proportion)
         
-        # Normalizar por máximo teórico (log(4) para 4 estrategias)
         max_diversity = np.log(4)
         return diversity / max_diversity if max_diversity > 0 else 0.0
     
@@ -230,8 +215,7 @@ class SimulationRenderer:
         
         if not territorial_boundaries:
             return 0.0
-        
-        # Fragmentación basada en compactness promedio
+
         compactness_values = [
             boundary.get('compactness', 0) 
             for boundary in territorial_boundaries.values()
@@ -241,8 +225,7 @@ class SimulationRenderer:
             return 0.0
         
         avg_compactness = np.mean(compactness_values)
-        # Invertir para que mayor fragmentación = menor compactness
-        fragmentation = max(0.0, 1.0 - (avg_compactness / 10.0))  # Normalizar
+        fragmentation = max(0.0, 1.0 - (avg_compactness / 10.0))
         
         return min(1.0, fragmentation)
     

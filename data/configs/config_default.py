@@ -2,14 +2,14 @@
 # Configuración por defecto para la simulación de competencia territorial
 
 # === CONFIGURACIÓN DEL ENTORNO ===
-GRID_SIZE = (10, 10)  # Tamaño de la rejilla (filas, columnas)
-RESOURCE_MAX = 10.0  # Cantidad máxima de recursos por celda
-RESOURCE_REGEN_RATE = 1.5  # Tasa de regeneración de recursos por unidad de tiempo
+GRID_SIZE = (30, 30)  # Tamaño de la rejilla (filas, columnas)
+RESOURCE_MAX = 50.0  # Cantidad máxima de recursos por celda
+RESOURCE_REGEN_RATE = 0.5  # Tasa de regeneración de recursos por unidad de tiempo
 
 # === CONFIGURACIÓN DE CLANES ===
 INITIAL_CLAN_COUNT = 5  # Número inicial de clanes
-MIN_CLAN_SIZE = 10  # Tamaño mínimo inicial de clan
-MAX_CLAN_SIZE = 20  # Tamaño máximo inicial de clan
+MIN_CLAN_SIZE = 20  # Tamaño mínimo inicial de clan
+MAX_CLAN_SIZE = 70  # Tamaño máximo inicial de clan
 
 # === PARÁMETROS DEMOGRÁFICOS ===
 BIRTH_RATE = 0.1  # Tasa de natalidad base por unidad de tiempo

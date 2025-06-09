@@ -1,4 +1,3 @@
-# analysis/sensitivity.py
 import numpy as np
 from simulation.engine import SimulationEngine
 from models.environment import Environment
@@ -17,8 +16,7 @@ def run_monte_carlo_simulation(num_runs=100, num_steps=100, dt=0.1, seed=None):
         for j in range(rng.randint(1, INITIAL_CLAN_COUNT + 1)):
             initial_size = rng.randint(MIN_CLAN_SIZE, MAX_CLAN_SIZE + 1)
             initial_position = [rng.randint(0, GRID_SIZE[0]), rng.randint(0, GRID_SIZE[1])]
-            
-            # Crear objeto Clan correctamente
+
             clan = Clan(
                 clan_id=j + 1,
                 initial_size=initial_size,
@@ -31,15 +29,13 @@ def run_monte_carlo_simulation(num_runs=100, num_steps=100, dt=0.1, seed=None):
             initial_clans.append(clan)
 
         environment = Environment(grid_size=GRID_SIZE)
-        
-        # Corregir la creación del engine - remover simulation_params y seed
+
         engine = SimulationEngine(
             environment, 
             initial_clans, 
-            dt=dt  # Pasar dt directamente
+            dt=dt 
         )
-        
-        # Si necesitas semilla, configúrala antes
+
         if seed:
             np.random.seed(rng.randint(0, 1000000))
 
@@ -50,7 +46,7 @@ def run_monte_carlo_simulation(num_runs=100, num_steps=100, dt=0.1, seed=None):
         
         final_state = None
         for _ in range(num_steps):
-            engine.step()  # Usar step() en lugar de run_step()
+            engine.step()
             final_state = engine.get_simulation_state()
 
         if final_state:
@@ -78,7 +74,6 @@ def analyze_sensitivity_results(monte_carlo_results):
         })
         final_populations.append(sum(c['size'] for c in final_state['clans']))
 
-    # Calcular correlaciones
     correlations = {}
     if initial_params and final_populations:
         try:
@@ -99,7 +94,6 @@ def analyze_sensitivity_results(monte_carlo_results):
             print(f"Error calculando correlaciones: {e}")
             correlations = {'error': str(e)}
 
-    # Identificar configuraciones críticas
     critical_configs = [res['initial_conditions'] for res in monte_carlo_results 
                        if sum(c['size'] for c in res['final_state']['clans']) == 0]
 

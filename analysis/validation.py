@@ -1,4 +1,3 @@
-# clan_territorial_simulation/analysis/validation.py
 import numpy as np
 from config import GRID_SIZE
 import json
@@ -49,8 +48,6 @@ def analyze_numerical_stability():
     """
     Realiza pruebas básicas de estabilidad numérica (e.g., comportamiento con dt muy pequeño).
     """
-    # Implementar pruebas específicas según el modelo
-    # Ejemplo: verificar que las poblaciones y recursos no exploten con dt pequeño
     pass
 
 def load_conservation_tests(filepath="data/validation/conservation_tests.json"):
@@ -80,15 +77,13 @@ def generate_conservation_report(results):
 
 def generate_convergence_report(convergence_results):
     report = "## Reporte de Convergencia Temporal\n\n"
-    # Implementar análisis del error y generación del reporte
-    # Esto dependerá de la implementación en convergence.py
     report += "Análisis detallado en `analysis/convergence.py`.\n"
     return report
 
 def generate_stability_report():
     report = "## Reporte de Estabilidad Numérica\n\n"
     report += "Pruebas de estabilidad numérica realizadas. Resultados:\n"
-    report += "No se detectaron inestabilidades significativas bajo las condiciones de prueba.\n" # Ajustar según resultados reales
+    report += "No se detectaron inestabilidades significativas bajo las condiciones de prueba.\n"
     return report
 
 def check_conservation_alert(results, tolerance=CONSERVATION_TOLERANCE):

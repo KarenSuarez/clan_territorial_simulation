@@ -1,4 +1,3 @@
-# analysis/convergence.py
 import numpy as np
 from simulation.engine import SimulationEngine
 from models.environment import Environment
@@ -8,17 +7,15 @@ import json
 CONVERGENCE_TOLERANCE = 0.05
 
 def run_simulation_for_convergence(initial_conditions, total_steps, dt):
-    # Crear clanes desde las condiciones iniciales
+    
     if 'clans' in initial_conditions:
         clans_data = initial_conditions['clans']
     else:
-        # Generar clanes de ejemplo si no existen
         clans_data = [
             {'id': 1, 'size': 50, 'position': [10, 10], 'parameters': {'birth_rate': 0.1, 'natural_death_rate': 0.05}},
             {'id': 2, 'size': 40, 'position': [30, 30], 'parameters': {'birth_rate': 0.12, 'natural_death_rate': 0.04}}
         ]
     
-    # Crear objetos Clan correctamente
     initial_clans = []
     for clan_data in clans_data:
         clan = Clan(
@@ -29,16 +26,15 @@ def run_simulation_for_convergence(initial_conditions, total_steps, dt):
         )
         initial_clans.append(clan)
     
-    # Crear engine con parámetros correctos (sin simulation_params)
     engine = SimulationEngine(
         Environment(grid_size=initial_conditions.get('grid_size', [50, 50])),
         initial_clans,
-        dt=dt  # Pasar dt directamente
+        dt=dt
     )
     
     states = [engine.get_simulation_state()]
     for _ in range(int(total_steps / dt)):
-        engine.step()  # Usar step() en lugar de run_step()
+        engine.step()
         states.append(engine.get_simulation_state())
     return states
 

@@ -1,13 +1,9 @@
-# simulation/random_generators.py
-
 import numpy as np
 
 class MersenneTwister:
     def __init__(self, seed):
-        # Usamos np.random.RandomState para aprovechar su implementación de Mersenne Twister
-        # Esto es mucho más robusto que una implementación manual para fines de simulación compleja.
         self.rng = np.random.RandomState(seed)
-        self.seed = seed  # Guardar la semilla para referencia
+        self.seed = seed
 
     def random_float(self):
         """Genera un flotante aleatorio entre 0.0 y 1.0."""
@@ -60,7 +56,6 @@ class MersenneTwister:
             indices = self.rng.choice(len(population), size=k, replace=False)
             return [population[i] for i in indices]
         else:
-            # Si population es un iterable sin len(), convertir a lista
             pop_list = list(population)
             indices = self.rng.choice(len(pop_list), size=k, replace=False)
             return [pop_list[i] for i in indices]
@@ -68,7 +63,7 @@ class MersenneTwister:
     def weighted_choice(self, choices, weights):
         """Hace una elección aleatoria ponderada."""
         weights = np.array(weights)
-        weights = weights / np.sum(weights)  # Normalizar
+        weights = weights / np.sum(weights) 
         return self.rng.choice(choices, p=weights)
 
     def random_walk(self, steps, step_size=1.0, dimensions=2):
@@ -82,9 +77,7 @@ class MersenneTwister:
             dy = np.sin(angles) * step_size
             positions = np.cumsum(np.column_stack([dx, dy]), axis=0)
         else:
-            # Para más dimensiones, generar direcciones aleatorias normalizadas
             directions = self.rng.normal(0, 1, size=(steps, dimensions))
-            # Normalizar cada dirección
             norms = np.linalg.norm(directions, axis=1, keepdims=True)
             directions = directions / norms * step_size
             positions = np.cumsum(directions, axis=0)
@@ -110,9 +103,9 @@ class LinearCongruentialGenerator:
     def __init__(self, seed, a=1664525, c=1013904223, m=2**32):
         self.seed = seed
         self.current = seed
-        self.a = a  # Multiplicador
-        self.c = c  # Incremento
-        self.m = m  # Módulo
+        self.a = a 
+        self.c = c
+        self.m = m 
 
     def random_int(self):
         """Genera el siguiente entero aleatorio."""
@@ -142,14 +135,14 @@ class XORShiftGenerator:
     
     def __init__(self, seed):
         self.seed = seed
-        self.state = seed if seed != 0 else 1  # XORShift no puede empezar con 0
+        self.state = seed if seed != 0 else 1
 
     def random_int(self):
         """Genera el siguiente entero aleatorio usando XORShift."""
         self.state ^= self.state << 13
         self.state ^= self.state >> 17
         self.state ^= self.state << 5
-        return self.state & 0xFFFFFFFF  # Mantener en 32 bits
+        return self.state & 0xFFFFFFFF 
 
     def random_float(self):
         """Genera un flotante aleatorio entre 0.0 y 1.0."""
@@ -164,7 +157,6 @@ class XORShiftGenerator:
         self.seed = new_seed
         self.state = new_seed if new_seed != 0 else 1
 
-# Función de utilidad para crear generadores según el tipo
 def create_generator(generator_type='mersenne', seed=None):
     """Factory function para crear diferentes tipos de generadores."""
     if seed is None:
@@ -180,11 +172,9 @@ def create_generator(generator_type='mersenne', seed=None):
     else:
         raise ValueError(f"Tipo de generador no soportado: {generator_type}")
 
-# Ejemplo de uso y test unitario básico
 if __name__ == '__main__':
     print("Probando generadores de números aleatorios...")
-    
-    # Test Mersenne Twister
+
     rng_mt = MersenneTwister(12345)
     print("\nMersenne Twister:")
     print("Random float:", rng_mt.random_float())
@@ -192,21 +182,18 @@ if __name__ == '__main__':
     print("Random normal:", rng_mt.random_normal())
     print("Random randint (1, 10):", rng_mt.random_randint(1, 10))
     print("Random choice:", rng_mt.random_choice(['a', 'b', 'c', 'd'], size=3))
-    
-    # Test Linear Congruential Generator
+
     rng_lcg = LinearCongruentialGenerator(12345)
     print("\nLinear Congruential Generator:")
     print("Random float:", rng_lcg.random_float())
     print("Random uniform (0, 10):", rng_lcg.random_uniform(0, 10))
     print("Random randint (1, 10):", rng_lcg.random_randint(1, 10))
-    
-    # Test XORShift
+
     rng_xor = XORShiftGenerator(12345)
     print("\nXORShift Generator:")
     print("Random float:", rng_xor.random_float())
     print("Random uniform (0, 10):", rng_xor.random_uniform(0, 10))
-    
-    # Test Factory Function
+
     print("\nUsando factory function:")
     rng_factory = create_generator('mersenne', 54321)
     print("Random walk 2D (5 pasos):")

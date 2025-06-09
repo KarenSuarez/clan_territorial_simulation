@@ -1,22 +1,18 @@
-// charts.js - Funcionalidad de gráficos para análisis (CORREGIDO)
 document.addEventListener('DOMContentLoaded', function() {
     console.log('Inicializando sistema de gráficos...');
     
-    // Variables globales para gráficos
     let populationChartInstance = null;
     let resourceChartInstance = null;
     let spatialChartInstance = null;
     let distributionChartInstance = null;
 
-    // Datos para los gráficos
     let chartData = {
         labels: [],
         populationData: [],
         resourceData: [],
-        maxDataPoints: 100  // LÍMITE MÁXIMO DE PUNTOS
+        maxDataPoints: 100
     };
 
-    // Configuración de colores
     const chartColors = {
         primary: '#3498db',
         secondary: '#2ecc71',
@@ -24,39 +20,34 @@ document.addEventListener('DOMContentLoaded', function() {
         warning: '#f39c12',
         info: '#9b59b6'
     };
-    
-    // Inicializar gráficos si Chart.js está disponible
+
     if (typeof Chart !== 'undefined') {
         initializeCharts();
-        console.log('✅ Chart.js disponible, inicializando gráficos');
+        console.log('Chart.js disponible, inicializando gráficos');
     } else {
-        console.warn('⚠️ Chart.js no está disponible');
+        console.warn('Chart.js no está disponible');
     }
     
     function initializeCharts() {
         console.log('Configurando gráficos...');
         
-        // Configuración por defecto para todos los gráficos
         Chart.defaults.font.family = "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif";
         Chart.defaults.font.size = 12;
         Chart.defaults.color = '#2c3e50';
-        
-        // Configurar gráfico de población si existe
+
         const populationCanvas = document.getElementById('populationChart');
         if (populationCanvas) {
             setupPopulationChart(populationCanvas);
         } else {
             console.warn('⚠️ Canvas populationChart no encontrado');
         }
-        
-        // Configurar otros gráficos
+
         setupAnalysisCharts();
     }
     
     function setupPopulationChart(canvas) {
         console.log('🔧 Configurando gráfico de población...');
-        
-        // Destruir instancia anterior si existe
+
         if (populationChartInstance) {
             populationChartInstance.destroy();
             populationChartInstance = null;
@@ -95,7 +86,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 responsive: true,
                 maintainAspectRatio: false,
                 animation: {
-                    duration: 0 // Sin animaciones para mejor rendimiento
+                    duration: 0
                 },
                 interaction: {
                     intersect: false,
@@ -135,7 +126,7 @@ document.addEventListener('DOMContentLoaded', function() {
                             text: 'Pasos de Simulación'
                         },
                         ticks: {
-                            maxTicksLimit: 10 // Limitar número de etiquetas
+                            maxTicksLimit: 10
                         }
                     },
                     y: {
@@ -272,11 +263,9 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
-    // FUNCIÓN PRINCIPAL PARA ACTUALIZAR GRÁFICO DE POBLACIÓN
     function updatePopulationChart(step, populationValue, resourceValue) {
         if (!populationChartInstance) {
             console.warn('⚠️ populationChartInstance no está inicializado.');
-            // Reintentar inicializar
             const populationCanvas = document.getElementById('populationChart');
             if (populationCanvas) {
                 setupPopulationChart(populationCanvas);
@@ -284,28 +273,23 @@ document.addEventListener('DOMContentLoaded', function() {
                 return;
             }
         }
-        
-        // Agregar nuevos datos
+
         chartData.labels.push(step);
         chartData.populationData.push(populationValue);
         chartData.resourceData.push(resourceValue);
-        
-        // IMPORTANTE: Limitar datos para evitar crecimiento infinito
+    
         if (chartData.labels.length > chartData.maxDataPoints) {
             chartData.labels.shift();
             chartData.populationData.shift();
             chartData.resourceData.shift();
         }
-        
-        // Actualizar el gráfico
+    
         populationChartInstance.data.labels = [...chartData.labels];
         populationChartInstance.data.datasets[0].data = [...chartData.populationData];
         populationChartInstance.data.datasets[1].data = [...chartData.resourceData];
         
-        // Actualizar sin animación para mejor rendimiento
         populationChartInstance.update('none');
-        
-        // Debug log ocasional
+    
         if (step % 20 === 0) {
             console.log(`📊 Gráfico actualizado: paso ${step}, puntos: ${chartData.labels.length}/${chartData.maxDataPoints}`);
         }
